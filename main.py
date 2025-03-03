@@ -4,7 +4,7 @@ import os
 import re
 from tkinter import filedialog, ttk, scrolledtext
 from tkinter import messagebox
-
+from tkinter import ttk
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.pagesizes import letter
@@ -151,10 +151,28 @@ def notizen_als_text_kopieren():
     tk.messagebox.showinfo("Export erfolgreich", "Notizen wurden in die Zwischenablage kopiert!")
 
 def frage_senden():
-    # Example usage in your analyse_starten function:
-    question = question_text.get(1.0, tk.END)
+    analyse_starten()
+    value = combobox_selected(combobox)
     content = analyseErgebnis
-    combined_text = question + "\n\n" + content
+    if value == "Zusammenfassung":
+        question = "Fasse den Text zusammen:{text}"
+        combined_text = question.format(text=content)
+    elif value == "Keyword-Extraktion":
+        question = "Extrahiere Schlüsselwörter aus diesem Text: {text}"
+        combined_text = question.format(text=content)
+    elif value == "Sentiment Analyse":
+        question = "Analysiere die Stimmung und den Tonfall dieses Textes: {text}"
+        combined_text = question.format(text=content)
+    elif value == "Themen-Erkennung":
+        question = "Erkenne die Hauptthemen des nachfolgendes Textes: {text}"
+        combined_text = question.format(text=content)
+    else:
+        question_prompt = question_text.get(1.0, tk.END).strip()
+        # Format the custom prompt with the content
+        prompt_template = f"{question_prompt} {{text}}"
+        combined_text = prompt_template.format(text=content)
+
+
     result = echte_ki_analyse(combined_text)
 
     output_text.config(state=tk.NORMAL)
@@ -179,6 +197,12 @@ def echte_ki_analyse(text):
 
     except Exception as e:
         return f"Fehler bei der KI-Analyse: {str(e)}"
+
+
+def combobox_selected(event):
+    selected_value = combobox.get()
+    print(f"Ausgewählt: {selected_value}")
+    return selected_value
 
 
 #Gui
@@ -262,10 +286,6 @@ pdf_path_var = tk.StringVar()
 pdf_path_label = ttk.Label(pdf_tab, textvariable=pdf_path_var, wraplength=350)
 pdf_path_label.pack(pady=5)
 
-# Analyze button
-analyze_button = ttk.Button(sources_frame, text="Analyse starten", command=analyse_starten)
-analyze_button.grid(row=1,column=0,sticky=tk.W+tk.E, pady=(10,0))
-
 
 
 #----------------------------------------------------------------------------------------------------------------------------
@@ -277,29 +297,36 @@ analysis_frame.columnconfigure(0, weight=1)
 
 
 # Question input
-ttk.Label(analysis_frame, text="Stellen Sie eine Frage oder fordern Sie eine Zusammenfassung an:").grid(row=0,column=0,sticky=tk.W)
+ttk.Label(analysis_frame, text="Erstelle einen Prompt zu dem Inhalt:").grid(row=0,column=0,sticky=tk.W)
 
 question_text = scrolledtext.ScrolledText(analysis_frame, height=4)
 question_text.grid(row=1,column=0,sticky=tk.W+tk.E,pady=(0,15))
 
+combobox = ttk.Combobox(analysis_frame, values=["Prompt senden", "Zusammenfassung","Keyword-Ektraktion","Sentiment Analyse","Themen-Erkennung"])
+combobox.current(0)
+combobox.grid(row=2,column=0,sticky=tk.W+tk.E,pady=(0,15))
+
 question_button = ttk.Button(analysis_frame, text="Frage senden",command=frage_senden)
-question_button.grid(row=2,column=0,sticky=tk.W+tk.E,pady=(0,15))
+question_button.grid(row=3,column=0,sticky=tk.W+tk.E,pady=(0,15))
+
+
+
 
 # Separator
 separator = ttk.Separator(analysis_frame, orient=tk.HORIZONTAL)
-separator.grid(row=3,column=0,sticky=tk.W+tk.E,pady=10)
+separator.grid(row=4,column=0,sticky=tk.W+tk.E,pady=10)
 
 # Output area
-ttk.Label(analysis_frame, text="Ergebnisse:").grid(row=4, column=0, sticky=tk.W)
+ttk.Label(analysis_frame, text="Ergebnisse:").grid(row=5, column=0, sticky=tk.W)
 
 output_text = scrolledtext.ScrolledText(analysis_frame, height=10)
-output_text.grid(row=5, column=0, sticky=tk.W+tk.E+tk.N+tk.S, pady=(0, 10))
-output_text.insert(tk.END, "Die Analyse wird hier angezeigt...")
+output_text.grid(row=6, column=0, sticky=tk.W+tk.E+tk.N+tk.S, pady=(0, 10))
+output_text.insert(tk.END, "Das Ergebnis wird hier angezeigt...")
 output_text.config(state=tk.DISABLED)
 
 # Note management buttons
 buttons_frame = ttk.Frame(analysis_frame)
-buttons_frame.grid(row=6, column=0, sticky=tk.W+tk.E, pady=(0, 10))
+buttons_frame.grid(row=7, column=0, sticky=tk.W+tk.E, pady=(0, 10))
 
 
 
