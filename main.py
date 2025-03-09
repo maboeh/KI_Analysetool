@@ -20,11 +20,11 @@ from APIKeyManager import APIKeyManager
 
 from markdown_formatter import configure_markdown_tags, markdown_to_tkinter_text
 
-notizen = []
-analyseErgebnis = ""
+notes = []
+analyseResult = ""
 
 #Funktionen
-def pdf_datei_auswaehlen():
+def pdf_file_choose():
     file_path = filedialog.askopenfilename(filetypes=[("PDF-Dateien", "*.pdf")])
     if file_path:
         pdf_entry.delete(0, tk.END)
@@ -35,65 +35,65 @@ def pdf_datei_auswaehlen():
 def dummy_ki_analyse(text):
     return text
 
-def ist_pdf_datei(dateipfad):
-    _, dateierweiterung = os.path.splitext(dateipfad)
-    return dateierweiterung.lower() == ".pdf"
+def is_pdf_file(filepath):
+    _, fileextension = os.path.splitext(filepath)
+    return fileextension.lower() == ".pdf"
 
 
-def analyse_starten():
+def start_analyse():
 
-    global analyseErgebnis
+    global analyseResult
     # Get path from the currently selected tab
     tab_id = input_tabs.select()
     tab_index = input_tabs.index(tab_id)
 
     if tab_index == 0:  # Website tab
-        analysePfad = website_url.get()
+        analysePath = website_url.get()
     elif tab_index == 1:  # YouTube tab
-        analysePfad = youtube_url.get()
+        analysePath = youtube_url.get()
     else:  # PDF tab
-        analysePfad = pdf_url.get()
+        analysePath = pdf_url.get()
 
-    analyseErgebnis = dummy_ki_analyse_datei(analysePfad)
-    return analyseErgebnis
-
-
+    analyseResult = dummy_ki_analyse_file(analysePath)
+    return analyseResult
 
 
-def dummy_ki_analyse_datei(dateipfad):
+
+
+def dummy_ki_analyse_file(filePath):
     try:
         #pdf analyse
-        if ist_pdf_datei(dateipfad):
-            with open(dateipfad, "rb") as file:
+        if is_pdf_file(filePath):
+            with open(filePath, "rb") as file:
                 reader = PyPDF2.PdfReader(file)
-                gesamter_text = ""
-                for seite in reader.pages:
-                    gesamter_text += seite.extract_text()
-            return dummy_ki_analyse(gesamter_text)
+                whole_text = ""
+                for page in reader.pages:
+                    whole_text += page.extract_text()
+            return dummy_ki_analyse(whole_text)
         #youtube analyse
-        elif "youtu" in dateipfad.lower():  # Erkennt verschiedene YouTube-URL-Formate
-            transkript = extrahiere_transkript(dateipfad)
+        elif "youtu" in filePath.lower():  # Erkennt verschiedene YouTube-URL-Formate
+            transkript = extract_transkript(filePath)
             return dummy_ki_analyse(transkript)
         #website analyse
-        elif "http" in dateipfad.lower():  # Erkennt verschiedene URL-Formate
-            text = extrahiere_text_von_website(dateipfad)
+        elif "http" in filePath.lower():  # Erkennt verschiedene URL-Formate
+            text = extract_text_from_website(filePath)
             return dummy_ki_analyse(text)
         else:
             try:
-                with open(dateipfad, "r", encoding="utf-8") as file:
-                    dateipfad_string = file.read()
-                    return dummy_ki_analyse(dateipfad_string)
+                with open(filePath, "r", encoding="utf-8") as file:
+                    filePath_string = file.read()
+                    return dummy_ki_analyse(filePath_string)
             except UnicodeDecodeError:
                 # Versuche andere Kodierungen, wenn UTF-8 fehlschlägt
-                with open(dateipfad, "r", encoding="latin-1") as file:
-                    dateipfad_string = file.read()
-                    return dummy_ki_analyse(dateipfad_string)
+                with open(filePath, "r", encoding="latin-1") as file:
+                    filePath_string = file.read()
+                    return dummy_ki_analyse(filePath_string)
     except FileNotFoundError:
         return "Fehler: Datei konnte nicht gefunden werden"
     except Exception as e:
         return f"Ein Fehler ist aufgetreten: {str(e)}"
 
-def extrahiere_transkript(youtubelink):
+def extract_transkript(youtubelink):
     if youtubelink.startswith("https://www.youtube.com/watch?v="):
         video_id = youtubelink.split("v=")[1]
     elif youtubelink.startswith("https://youtu.be/"):
@@ -104,25 +104,25 @@ def extrahiere_transkript(youtubelink):
         text += satz["text"] + " "
     return text
 
-def extrahiere_text_von_website(url):
+def extract_text_from_website(url):
     response = requests.get(url)
     soup = BeautifulSoup(response.text, "html.parser")
     text = soup.get_text()
     return text
 
-def notiz_speichern():
-    global notizen
-    notiz = output_text.get(1.0, tk.END).strip()
+def save_note():
+    global notes
+    note = output_text.get(1.0, tk.END).strip()
 
-    if notiz:
-        notizen = [notiz]
+    if note:
+        notes = [note]
         status_var.set("Notiz gespeichert")
     else:
         status_var.set("Kein Text zum Speichern gefunden")
-    print(notizen)
+    print(notes)
 
-def notizen_als_pdf_exportieren():
-    notiz_speichern()
+def export_notes_as_pdf():
+    save_note()
     file_path = filedialog.asksaveasfilename(filetypes=[("PDF-Dateien", "*.pdf")])
 
     if not file_path:
@@ -135,8 +135,8 @@ def notizen_als_pdf_exportieren():
     story.append(title)
     story.append(Spacer(1, 0.25*inch))
 
-    for i, notiz in enumerate(notizen,1):
-        note_text = f"{i}. {notiz}"
+    for i, note in enumerate(notes, 1):
+        note_text = f"{i}. {note}"
         wrapped_text = Paragraph(note_text, styles["Normal"])
         story.append(wrapped_text)
         story.append(Spacer(1, 0.1*inch))
@@ -146,18 +146,18 @@ def notizen_als_pdf_exportieren():
     tk.messagebox.showinfo("Export erfolgreich", "Notizen wurden als PDF exportiert!")
 
 
-def notizen_als_text_kopieren():
-    notiz_speichern()
+def copy_notes_as_text():
+    save_note()
     window.clipboard_clear()
-    window.clipboard_append("\n\n".join(notizen))
+    window.clipboard_append("\n\n".join(notes))
     window.update()
     tk.messagebox.showinfo("Export erfolgreich", "Notizen wurden in die Zwischenablage kopiert!")
 
-def frage_senden():
-    analyse_starten()
+def send_question():
+    start_analyse()
 
     value = combobox.get()
-    content = analyseErgebnis
+    content = analyseResult
     if value == "Zusammenfassung":
         question = "Fasse den Text zusammen:{text}"
         combined_text = question.format(text=content)
@@ -177,7 +177,7 @@ def frage_senden():
         combined_text = prompt_template.format(text=content)
 
 
-    result_analysis = echte_ki_analyse(combined_text)
+    result_analysis = real_ai_analyse(combined_text)
 
     output_text.config(state=tk.NORMAL)
     output_text.delete(1.0, tk.END)
@@ -185,7 +185,7 @@ def frage_senden():
 
     output_text.config(state=tk.DISABLED)
 
-def echte_ki_analyse(text):
+def real_ai_analyse(text):
     try:
         api_manager = APIKeyManager(app_name="KI_Analysetool")
 
@@ -279,7 +279,7 @@ pdf_url_button.pack(side=tk.RIGHT)
 
 ttk.Label(pdf_tab, text="oder").pack(pady=5)
 
-pdf_upload_button = ttk.Button(pdf_tab, text="PDF hochladen", command=pdf_datei_auswaehlen)
+pdf_upload_button = ttk.Button(pdf_tab, text="PDF hochladen", command=pdf_file_choose)
 pdf_upload_button.pack(pady=5)
 
 pdf_path_var = tk.StringVar()
@@ -306,7 +306,7 @@ combobox = ttk.Combobox(analysis_frame, values=["Prompt senden", "Zusammenfassun
 combobox.current(0)
 combobox.grid(row=2,column=0,sticky=tk.W+tk.E,pady=(0,15))
 
-question_button = ttk.Button(analysis_frame, text="Frage senden",command=frage_senden)
+question_button = ttk.Button(analysis_frame, text="Frage senden", command=send_question)
 question_button.grid(row=3,column=0,sticky=tk.W+tk.E,pady=(0,15))
 
 
@@ -332,10 +332,10 @@ buttons_frame.grid(row=7, column=0, sticky=tk.W+tk.E, pady=(0, 10))
 
 
 
-export_button = ttk.Button(buttons_frame, text="Notiz exportieren", command=notizen_als_pdf_exportieren)
+export_button = ttk.Button(buttons_frame, text="Notiz exportieren", command=export_notes_as_pdf)
 export_button.grid(row=0, column=0)
 
-clipboard_button = ttk.Button(buttons_frame, text="In Zwischenablage", command=notizen_als_text_kopieren)
+clipboard_button = ttk.Button(buttons_frame, text="In Zwischenablage", command=copy_notes_as_text)
 clipboard_button.grid(row=0, column=2)
 
 # Status bar
