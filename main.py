@@ -5,7 +5,9 @@ import re
 from tkinter import filedialog, ttk, scrolledtext
 from tkinter import messagebox
 from tkinter import ttk
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+
+from reportlab.lib import colors
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
@@ -15,6 +17,8 @@ import requests
 from openai import OpenAI
 
 from APIKeyManager import APIKeyManager
+
+from markdown_formatter import configure_markdown_tags, markdown_to_tkinter_text
 
 notizen = []
 analyseErgebnis = ""
@@ -137,7 +141,6 @@ def notizen_als_pdf_exportieren():
         story.append(wrapped_text)
         story.append(Spacer(1, 0.1*inch))
 
-
     pdf.build(story)
     # Inform user
     tk.messagebox.showinfo("Export erfolgreich", "Notizen wurden als PDF exportiert!")
@@ -146,13 +149,14 @@ def notizen_als_pdf_exportieren():
 def notizen_als_text_kopieren():
     notiz_speichern()
     window.clipboard_clear()
-    window.clipboard_append(notizen)
+    window.clipboard_append("\n\n".join(notizen))
     window.update()
     tk.messagebox.showinfo("Export erfolgreich", "Notizen wurden in die Zwischenablage kopiert!")
 
 def frage_senden():
     analyse_starten()
-    value = combobox_selected(combobox)
+
+    value = combobox.get()
     content = analyseErgebnis
     if value == "Zusammenfassung":
         question = "Fasse den Text zusammen:{text}"
@@ -173,11 +177,12 @@ def frage_senden():
         combined_text = prompt_template.format(text=content)
 
 
-    result = echte_ki_analyse(combined_text)
+    result_analysis = echte_ki_analyse(combined_text)
 
     output_text.config(state=tk.NORMAL)
     output_text.delete(1.0, tk.END)
-    output_text.insert(tk.END, result)
+    markdown_to_tkinter_text(result_analysis, output_text)
+
     output_text.config(state=tk.DISABLED)
 
 def echte_ki_analyse(text):
@@ -199,10 +204,7 @@ def echte_ki_analyse(text):
         return f"Fehler bei der KI-Analyse: {str(e)}"
 
 
-def combobox_selected(event):
-    selected_value = combobox.get()
-    print(f"Ausgewählt: {selected_value}")
-    return selected_value
+
 
 
 #Gui
@@ -242,8 +244,7 @@ website_url = tk.StringVar()
 website_entry = ttk.Entry(website_frame, textvariable=website_url)
 website_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
 
-website_button = ttk.Button(website_frame, text="Hinzufügen", )
-website_button.pack(side=tk.RIGHT)
+
 
 # YouTube tab
 youtube_tab = ttk.Frame(input_tabs, padding=10)
@@ -258,8 +259,7 @@ youtube_url = tk.StringVar()
 youtube_entry = ttk.Entry(youtube_frame, textvariable=youtube_url)
 youtube_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
 
-youtube_button = ttk.Button(youtube_frame, text="Hinzufügen", )
-youtube_button.pack(side=tk.RIGHT)
+
 
 # PDF tab
 pdf_tab = ttk.Frame(input_tabs, padding=10)
@@ -302,7 +302,7 @@ ttk.Label(analysis_frame, text="Erstelle einen Prompt zu dem Inhalt:").grid(row=
 question_text = scrolledtext.ScrolledText(analysis_frame, height=4)
 question_text.grid(row=1,column=0,sticky=tk.W+tk.E,pady=(0,15))
 
-combobox = ttk.Combobox(analysis_frame, values=["Prompt senden", "Zusammenfassung","Keyword-Ektraktion","Sentiment Analyse","Themen-Erkennung"])
+combobox = ttk.Combobox(analysis_frame, values=["Prompt senden", "Zusammenfassung","Keyword-Extraktion","Sentiment Analyse","Themen-Erkennung"])
 combobox.current(0)
 combobox.grid(row=2,column=0,sticky=tk.W+tk.E,pady=(0,15))
 
@@ -323,6 +323,8 @@ output_text = scrolledtext.ScrolledText(analysis_frame, height=10)
 output_text.grid(row=6, column=0, sticky=tk.W+tk.E+tk.N+tk.S, pady=(0, 10))
 output_text.insert(tk.END, "Das Ergebnis wird hier angezeigt...")
 output_text.config(state=tk.DISABLED)
+
+configure_markdown_tags(output_text)
 
 # Note management buttons
 buttons_frame = ttk.Frame(analysis_frame)
