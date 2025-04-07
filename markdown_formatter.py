@@ -18,7 +18,7 @@ def configure_markdown_tags(text_widget):
     text_widget.tag_config("code", font=("Courier", 12, "normal"))
     text_widget.tag_config("blockquote", font=("Helvetica", 12, "italic"))
     text_widget.tag_config("link", font=("Helvetica", 12, "underline"))
-
+#TODO funtkionen fertigstellen mit allen ausgaben
 
 def markdown_to_tkinter_text(mark_down_text, text_widget):
     text_widget.delete(1.0, tk.END)  # Clear existing content
