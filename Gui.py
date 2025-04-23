@@ -14,6 +14,7 @@ from markdown_formatter import configure_markdown_tags, markdown_to_tkinter_text
 from analysis import (extract_transkript, extract_text_from_website,
                      text_extraction_youtube_website, real_ai_analyse_fortext,
                      real_ai_analyse_forpdf)
+from config import check_api_key_exists, save_api_key, get_api_key
 
 
 class Gui():
@@ -24,11 +25,51 @@ class Gui():
         self.window.minsize(700, 900)
 
 
+        if not check_api_key_exists():
+            self.show_api_key_dialog()
+
         self.notes = []
         self.analyseResult = ""
         self.analysePath = ""
 
         self.setupGui()
+
+    def show_api_key_dialog(self):
+        """Zeigt einen Dialog zur Eingabe des API-Keys an."""
+        dialog = tk.Toplevel(self.window)
+        dialog.title("API-Key Eingabe")
+        dialog.geometry("400x150")
+        dialog.resizable(False, False)
+
+        # Dialog modal machen (Hauptfenster blockieren)
+        dialog.transient(self.window)
+        dialog.grab_set()
+
+        # Erklärungstext
+        ttk.Label(
+            dialog,
+            text="Bitte gib deinen OpenAI API-Key ein.\nDieser wird für die KI-Funktionen benötigt.",
+            wraplength=380
+        ).pack(pady=(20, 10))
+
+        # Eingabefeld
+        api_key_var = tk.StringVar()
+        entry = ttk.Entry(dialog, textvariable=api_key_var, width=50)
+        entry.pack(padx=20, pady=5)
+
+        # Bestätigungsbutton
+        def save_and_close():
+            key = api_key_var.get().strip()
+            if key:
+                save_api_key(key)
+                dialog.destroy()
+            else:
+                messagebox.showerror("Fehler", "Bitte gib einen API-Key ein.")
+
+        ttk.Button(dialog, text="Speichern", command=save_and_close).pack(pady=10)
+
+        # Sicherstellen, dass der Dialog geschlossen wird, bevor die App weiterläuft
+        self.window.wait_window(dialog)
 
     def setupGui(self):
         # Main Container
