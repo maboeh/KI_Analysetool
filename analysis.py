@@ -5,8 +5,7 @@ from youtube_transcript_api import YouTubeTranscriptApi
 from bs4 import BeautifulSoup
 import requests
 from openai import OpenAI
-
-from APIKeyManager import APIKeyManager
+from config import get_api_key
 
 
 
@@ -62,11 +61,14 @@ def text_extraction_youtube_website(filePath):
 
 def real_ai_analyse_fortext(text):
     try:
-        #TODO: OpenAI API Key input through user and login - include database then
 
-        api_manager = APIKeyManager(app_name="KI_Analysetool")
 
-        api_key = api_manager.get_api_key()
+
+        api_key = get_api_key()
+
+        if not api_key:
+            return "Fehler: Kein API-Schlüssel verfügbar"
+
         client = OpenAI(api_key=api_key)
 
 
@@ -84,8 +86,10 @@ def real_ai_analyse_fortext(text):
 
 def real_ai_analyse_forpdf(pdf_path, prompt):
     try:
-        api_manager = APIKeyManager(app_name="KI_Analysetool")
-        api_key = api_manager.get_api_key()
+
+        api_key = get_api_key()
+        if not api_key:
+            return "Fehler: Kein API-Schlüssel verfügbar"
         client = OpenAI(api_key=api_key)
 
         # For PDFs:
