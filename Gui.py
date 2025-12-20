@@ -3,6 +3,7 @@ from tkinter import filedialog, ttk, scrolledtext
 from tkinter import messagebox
 import os
 import cProfile
+import threading
 
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet
@@ -175,8 +176,8 @@ class Gui():
         self.combobox.current(0)
         self.combobox.grid(row=2, column=0, sticky=tk.W + tk.E, pady=(0, 15))
 
-        question_button = ttk.Button(self.analysis_frame, text="Frage senden", command=self.send_question)
-        question_button.grid(row=3, column=0, sticky=tk.W + tk.E, pady=(0, 15))
+        self.question_button = ttk.Button(self.analysis_frame, text="Frage senden", command=self.send_question)
+        self.question_button.grid(row=3, column=0, sticky=tk.W + tk.E, pady=(0, 15))
 
         # Separator
         separator = ttk.Separator(self.analysis_frame, orient=tk.HORIZONTAL)
@@ -256,22 +257,106 @@ class Gui():
             return prompt_template
 
     def send_question(self):
-        self.start_analyse()  # texte oder pdf_url extrahieren
-        content = self.analyseResult  # ergebnis der extraktion in content speichern
-        prompt = self.get_prompt(content)
+        # UI Input Gathering and Validation
+        tab_id = self.input_tabs.select()
+        tab_index = self.input_tabs.index(tab_id)
 
-        if "http" in self.analysePath.lower() or "youtu" in self.analysePath.lower():
-            combined_text = prompt.format(text=content)
-            result_analysis = real_ai_analyse_fortext(combined_text)
+        input_path = ""
+        is_pdf_upload = False
 
-        else:
-            result_analysis = real_ai_analyse_forpdf(content, prompt)
+        if tab_index == 0:  # Website
+            input_path = self.website_url.get().strip()
+        elif tab_index == 1:  # YouTube
+            input_path = self.youtube_url.get().strip()
+        elif tab_index == 2:  # PDF
+            # Check URL first, then file path
+            url_val = self.pdf_url.get().strip()
+            path_val = self.pdf_path_var.get().strip()
+            if url_val:
+                input_path = url_val
+            elif path_val:
+                input_path = path_val
+                is_pdf_upload = True
 
+        if not input_path:
+            messagebox.showwarning("Fehlende Eingabe", "Bitte gib eine URL ein oder wähle eine Datei aus.")
+            return
 
+        # Prepare for background work
+        self.question_button.config(state=tk.DISABLED, text="Verarbeite...")
+        self.status_var.set("Analyse läuft...")
         self.output_text.config(state=tk.NORMAL)
         self.output_text.delete(1.0, tk.END)
-        markdown_to_tkinter_text(result_analysis, self.output_text)
+        self.output_text.insert(tk.END, "Analyse läuft, bitte warten...\n")
         self.output_text.config(state=tk.DISABLED)
+
+        # Get prompt params before threading
+        prompt_value = self.combobox.get()
+        custom_prompt_text = self.question_text.get(1.0, tk.END).strip()
+
+        # Run analysis in a separate thread
+        thread = threading.Thread(
+            target=self.run_analysis_thread,
+            args=(input_path, tab_index, is_pdf_upload, prompt_value, custom_prompt_text)
+        )
+        thread.daemon = True
+        thread.start()
+
+    def run_analysis_thread(self, input_path, tab_index, is_pdf_upload, prompt_value, custom_prompt_text):
+        try:
+            content = ""
+            self.analysePath = input_path # Maintain compatibility
+
+            # Step 1: Extraction
+            if tab_index in [0, 1]: # Website or YouTube
+                content = text_extraction_youtube_website(input_path)
+                self.analyseResult = content
+            elif tab_index == 2: # PDF
+                if is_pdf_upload:
+                    content = input_path # It's the file path
+                else:
+                    content = input_path
+                self.analyseResult = content
+
+            # Step 2: Prompt Generation
+            prompt = ""
+            if prompt_value == "Zusammenfassung":
+                prompt = "Fasse den Text zusammen:{text}"
+            elif prompt_value == "Keyword-Extraktion":
+                prompt = "Extrahiere Schlüsselwörter aus diesem Text: {text}".format(text=content)
+            elif prompt_value == "Sentiment Analyse":
+                prompt = "Analysiere die Stimmung und den Tonfall dieses Textes: {text}".format(text=content)
+            elif prompt_value == "Themen-Erkennung":
+                prompt = "Erkenne die Hauptthemen des nachfolgendes Textes: {text}".format(text=content)
+            else:
+                prompt = f"{custom_prompt_text} {{text}}".format(text=content)
+
+            # Step 3: AI Analysis
+            result_analysis = ""
+            if "http" in input_path.lower() or "youtu" in input_path.lower():
+                try:
+                    combined_text = prompt.format(text=content)
+                except Exception:
+                    combined_text = prompt
+                result_analysis = real_ai_analyse_fortext(combined_text)
+            else:
+                result_analysis = real_ai_analyse_forpdf(content, prompt)
+
+            # Schedule UI Update
+            self.window.after(0, self.analysis_complete, result_analysis)
+
+        except Exception as e:
+            error_msg = f"Ein Fehler ist aufgetreten:\n{str(e)}"
+            self.window.after(0, self.analysis_complete, error_msg)
+
+    def analysis_complete(self, result_text):
+        self.output_text.config(state=tk.NORMAL)
+        self.output_text.delete(1.0, tk.END)
+        markdown_to_tkinter_text(result_text, self.output_text)
+        self.output_text.config(state=tk.DISABLED)
+
+        self.question_button.config(state=tk.NORMAL, text="Frage senden")
+        self.status_var.set("Analyse abgeschlossen")
 
     def save_note(self):
         self.notes
