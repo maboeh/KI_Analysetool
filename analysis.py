@@ -1,5 +1,6 @@
 
 import os
+from urllib.parse import urlparse
 
 from youtube_transcript_api import YouTubeTranscriptApi
 from bs4 import BeautifulSoup
@@ -27,10 +28,18 @@ def extract_transkript(youtubelink):
     return text
 
 def extract_text_from_website(url):
-    response = requests.get(url)
-    soup = BeautifulSoup(response.text, "html.parser")
-    text = soup.get_text()
-    return text
+    parsed_url = urlparse(url)
+    if parsed_url.scheme not in ('http', 'https'):
+        raise ValueError("Invalid URL scheme. Only 'http' and 'https' are supported.")
+
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, "html.parser")
+        text = soup.get_text()
+        return text
+    except requests.exceptions.RequestException as e:
+        raise Exception(f"Error fetching website: {str(e)}")
 
 #TODO eigene funktionen für text und pdf <-- sieht wohl so aus dass ich das dringend benötig eund den gesamtflow neu denken muss!!!!!
 def text_extraction_youtube_website(filePath):
