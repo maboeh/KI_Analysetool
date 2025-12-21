@@ -3,6 +3,7 @@ from tkinter import filedialog, ttk, scrolledtext
 from tkinter import messagebox
 import os
 import cProfile
+import threading
 
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet
@@ -175,8 +176,8 @@ class Gui():
         self.combobox.current(0)
         self.combobox.grid(row=2, column=0, sticky=tk.W + tk.E, pady=(0, 15))
 
-        question_button = ttk.Button(self.analysis_frame, text="Frage senden", command=self.send_question)
-        question_button.grid(row=3, column=0, sticky=tk.W + tk.E, pady=(0, 15))
+        self.question_button = ttk.Button(self.analysis_frame, text="Frage senden", command=self.send_question)
+        self.question_button.grid(row=3, column=0, sticky=tk.W + tk.E, pady=(0, 15))
 
         # Separator
         separator = ttk.Separator(self.analysis_frame, orient=tk.HORIZONTAL)
@@ -214,64 +215,97 @@ class Gui():
             self.pdf_entry.insert(0, file_path)
             self.pdf_path_var.set(file_path)  # Update the path label
 
-    def start_analyse(self):
+    @staticmethod
+    def _perform_extraction(input_type, path):
+        if input_type in ['website', 'youtube']:
+            return text_extraction_youtube_website(path)
+        elif input_type == 'pdf':
+            return path
+        return ""
 
+    @staticmethod
+    def _generate_prompt_text(prompt_type, custom_prompt, content):
+        if prompt_type == "Zusammenfassung":
+            return f"Fasse den Text zusammen:{content}"
+        elif prompt_type == "Keyword-Extraktion":
+            return f"Extrahiere Schlüsselwörter aus diesem Text: {content}"
+        elif prompt_type == "Sentiment Analyse":
+            return f"Analysiere die Stimmung und den Tonfall dieses Textes: {content}"
+        elif prompt_type == "Themen-Erkennung":
+            return f"Erkenne die Hauptthemen des nachfolgendes Textes: {content}"
+        else:
+            return f"{custom_prompt} {content}"
 
-        # Get path from the currently selected tab
+    def send_question(self):
+        # Gather inputs in main thread
         tab_id = self.input_tabs.select()
         tab_index = self.input_tabs.index(tab_id)
 
-        if tab_index == 0:  # Website tab
-            self.analysePath = self.website_url.get()
-            self.analyseResult = text_extraction_youtube_website(self.analysePath)
-            return self.analyseResult, self.analysePath
-        elif tab_index == 1:  # YouTube tab
-            self.analysePath = self.youtube_url.get()
-            self.analyseResult = text_extraction_youtube_website(self.analysePath)
-            return self.analyseResult, self.analysePath
-        elif tab_index == 2:  # PDF tab
-            self.analysePath = self.pdf_url.get()
-            self.analyseResult = self.pdf_path_var.get()
-            return self.analyseResult
+        input_data = {}
+        if tab_index == 0:  # Website
+            input_data['type'] = 'website'
+            input_data['path'] = self.website_url.get()
+        elif tab_index == 1:  # YouTube
+            input_data['type'] = 'youtube'
+            input_data['path'] = self.youtube_url.get()
+        elif tab_index == 2:  # PDF
+            input_data['type'] = 'pdf'
+            input_data['path'] = self.pdf_path_var.get()
+            input_data['url'] = self.pdf_url.get()
 
-    def get_prompt(self,content):
+        prompt_type = self.combobox.get()
+        custom_prompt = self.question_text.get(1.0, tk.END).strip()
 
-        value = self.combobox.get()
-        if value == "Zusammenfassung":
-            question = "Fasse den Text zusammen:{text}"
-            return question
-        elif value == "Keyword-Extraktion":
-            question = "Extrahiere Schlüsselwörter aus diesem Text: {text}".format(text=content)
-            return question
-        elif value == "Sentiment Analyse":
-            question = "Analysiere die Stimmung und den Tonfall dieses Textes: {text}".format(text=content)
-            return question
-        elif value == "Themen-Erkennung":
-            question = "Erkenne die Hauptthemen des nachfolgendes Textes: {text}".format(text=content)
-            return question
-        else:
-            question_prompt = self.question_text.get(1.0, tk.END).strip()
-            # Format the custom prompt with the content
-            prompt_template = f"{question_prompt} {{text}}".format(text=content)
-            return prompt_template
+        # Update UI to loading state
+        self.question_button.config(state=tk.DISABLED, text="Analyse läuft...")
+        self.status_var.set("Analyse läuft... Bitte warten.")
+        self.output_text.config(state=tk.NORMAL)
+        self.output_text.delete(1.0, tk.END)
+        self.output_text.insert(tk.END, "Analyse wird durchgeführt...\nDies kann einige Sekunden dauern.")
+        self.output_text.config(state=tk.DISABLED)
+        self.window.update()
 
-    def send_question(self):
-        self.start_analyse()  # texte oder pdf_url extrahieren
-        content = self.analyseResult  # ergebnis der extraktion in content speichern
-        prompt = self.get_prompt(content)
+        # Run analysis in background thread
+        threading.Thread(target=self.run_analysis_thread, args=(input_data, prompt_type, custom_prompt), daemon=True).start()
 
-        if "http" in self.analysePath.lower() or "youtu" in self.analysePath.lower():
-            combined_text = prompt.format(text=content)
-            result_analysis = real_ai_analyse_fortext(combined_text)
+    def run_analysis_thread(self, input_data, prompt_type, custom_prompt):
+        try:
+            content = self._perform_extraction(input_data['type'], input_data['path'])
+            final_prompt = self._generate_prompt_text(prompt_type, custom_prompt, content)
 
-        else:
-            result_analysis = real_ai_analyse_forpdf(content, prompt)
+            # Analysis logic
+            result_analysis = ""
+            if input_data['type'] in ['website', 'youtube']:
+                result_analysis = real_ai_analyse_fortext(final_prompt)
+            else:
+                result_analysis = real_ai_analyse_forpdf(content, final_prompt)
 
+            self.window.after(0, self.update_ui_success, result_analysis, content, input_data['path'])
+
+        except Exception as e:
+            self.window.after(0, self.update_ui_error, str(e))
+
+    def update_ui_success(self, result, content, path):
+        # Update state
+        self.analyseResult = content
+        self.analysePath = path
 
         self.output_text.config(state=tk.NORMAL)
         self.output_text.delete(1.0, tk.END)
-        markdown_to_tkinter_text(result_analysis, self.output_text)
+        markdown_to_tkinter_text(result, self.output_text)
         self.output_text.config(state=tk.DISABLED)
+        self.reset_ui_state()
+
+    def update_ui_error(self, error_message):
+        self.output_text.config(state=tk.NORMAL)
+        self.output_text.delete(1.0, tk.END)
+        self.output_text.insert(tk.END, f"Fehler: {error_message}")
+        self.output_text.config(state=tk.DISABLED)
+        self.reset_ui_state()
+
+    def reset_ui_state(self):
+        self.question_button.config(state=tk.NORMAL, text="Frage senden")
+        self.status_var.set("Bereit")
 
     def save_note(self):
         self.notes
