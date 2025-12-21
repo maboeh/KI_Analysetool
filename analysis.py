@@ -6,6 +6,7 @@ from bs4 import BeautifulSoup
 import requests
 from openai import OpenAI
 from config import get_api_key
+from security import validate_url
 
 
 
@@ -27,7 +28,14 @@ def extract_transkript(youtubelink):
     return text
 
 def extract_text_from_website(url):
-    response = requests.get(url)
+    # Security: Validate URL to prevent SSRF
+    validate_url(url)
+
+    # Using a reasonable timeout is also a security best practice to prevent DoS via hangs
+    # Note: We allow redirects to support normal browsing (e.g. http->https),
+    # which leaves a residual risk of SSRF via open redirects.
+    # A full fix would require a custom redirect handler that validates every hop.
+    response = requests.get(url, timeout=10)
     soup = BeautifulSoup(response.text, "html.parser")
     text = soup.get_text()
     return text
