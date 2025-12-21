@@ -21,10 +21,10 @@ def extract_transkript(youtubelink):
     elif youtubelink.startswith("https://youtu.be/"):
         video_id = youtubelink.split("be/")[1]
     transkript = YouTubeTranscriptApi.get_transcript(video_id, languages=['de', 'en'])
-    text = ""
-    for satz in transkript:
-        text += satz["text"] + " "
-    return text
+    # Optimize: Use join instead of string concatenation in loop (O(n) vs O(n^2))
+    if not transkript:
+        return ""
+    return " ".join(satz["text"] for satz in transkript) + " "
 
 def extract_text_from_website(url):
     response = requests.get(url)
