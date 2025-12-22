@@ -1,5 +1,6 @@
 
 import os
+from functools import lru_cache
 
 from youtube_transcript_api import YouTubeTranscriptApi
 from bs4 import BeautifulSoup
@@ -15,6 +16,7 @@ def is_pdf_file(filepath):
     _, fileextension = os.path.splitext(filepath)
     return fileextension.lower() == ".pdf"
 
+@lru_cache(maxsize=32)
 def extract_transkript(youtubelink):
     if youtubelink.startswith("https://www.youtube.com/watch?v="):
         video_id = youtubelink.split("v=")[1]
@@ -26,6 +28,7 @@ def extract_transkript(youtubelink):
         text += satz["text"] + " "
     return text
 
+@lru_cache(maxsize=32)
 def extract_text_from_website(url):
     response = requests.get(url)
     soup = BeautifulSoup(response.text, "html.parser")
