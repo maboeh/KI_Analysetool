@@ -22,12 +22,11 @@ def extract_transkript(youtubelink):
         video_id = youtubelink.split("v=")[1]
     elif youtubelink.startswith("https://youtu.be/"):
         video_id = youtubelink.split("be/")[1]
-    transkript = YouTubeTranscriptApi.get_transcript(
-        video_id, languages=['de', 'en'])
-    text = ""
-    for satz in transkript:
-        text += satz["text"] + " "
-    return text
+    transkript = YouTubeTranscriptApi.get_transcript(video_id, languages=['de', 'en'])
+    # Optimization: Use join for O(n) performance instead of O(n^2) loop concatenation
+    if not transkript:
+        return ""
+    return " ".join(satz["text"] for satz in transkript) + " "
 
 from urllib.parse import urljoin
 
