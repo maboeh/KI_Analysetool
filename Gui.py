@@ -175,8 +175,8 @@ class Gui():
         self.combobox.current(0)
         self.combobox.grid(row=2, column=0, sticky=tk.W + tk.E, pady=(0, 15))
 
-        question_button = ttk.Button(self.analysis_frame, text="Frage senden", command=self.send_question)
-        question_button.grid(row=3, column=0, sticky=tk.W + tk.E, pady=(0, 15))
+        self.question_button = ttk.Button(self.analysis_frame, text="Frage senden", command=self.send_question)
+        self.question_button.grid(row=3, column=0, sticky=tk.W + tk.E, pady=(0, 15))
 
         # Separator
         separator = ttk.Separator(self.analysis_frame, orient=tk.HORIZONTAL)
@@ -256,22 +256,36 @@ class Gui():
             return prompt_template
 
     def send_question(self):
-        self.start_analyse()  # texte oder pdf_url extrahieren
-        content = self.analyseResult  # ergebnis der extraktion in content speichern
-        prompt = self.get_prompt(content)
+        try:
+            self.window.config(cursor="watch")
+            self.status_var.set("Analyse läuft... Bitte warten.")
+            self.question_button.config(state=tk.DISABLED)
+            self.window.update()
 
-        if "http" in self.analysePath.lower() or "youtu" in self.analysePath.lower():
-            combined_text = prompt.format(text=content)
-            result_analysis = real_ai_analyse_fortext(combined_text)
+            self.start_analyse()  # texte oder pdf_url extrahieren
+            content = self.analyseResult  # ergebnis der extraktion in content speichern
+            prompt = self.get_prompt(content)
 
-        else:
-            result_analysis = real_ai_analyse_forpdf(content, prompt)
+            if "http" in self.analysePath.lower() or "youtu" in self.analysePath.lower():
+                combined_text = prompt.format(text=content)
+                result_analysis = real_ai_analyse_fortext(combined_text)
 
+            else:
+                result_analysis = real_ai_analyse_forpdf(content, prompt)
 
-        self.output_text.config(state=tk.NORMAL)
-        self.output_text.delete(1.0, tk.END)
-        markdown_to_tkinter_text(result_analysis, self.output_text)
-        self.output_text.config(state=tk.DISABLED)
+            self.output_text.config(state=tk.NORMAL)
+            self.output_text.delete(1.0, tk.END)
+            markdown_to_tkinter_text(result_analysis, self.output_text)
+            self.output_text.config(state=tk.DISABLED)
+            self.status_var.set("Analyse abgeschlossen.")
+
+        except Exception as e:
+            messagebox.showerror("Fehler", f"Ein Fehler ist aufgetreten: {str(e)}")
+            self.status_var.set("Fehler bei der Analyse.")
+
+        finally:
+            self.window.config(cursor="")
+            self.question_button.config(state=tk.NORMAL)
 
     def save_note(self):
         self.notes
