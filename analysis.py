@@ -7,9 +7,7 @@ from bs4 import BeautifulSoup
 import requests
 from openai import OpenAI
 from config import get_api_key
-
-
-
+from security import validate_url
 
 
 def is_pdf_file(filepath):
@@ -17,32 +15,37 @@ def is_pdf_file(filepath):
     return fileextension.lower() == ".pdf"
 
 @lru_cache(maxsize=32)
+
 def extract_transkript(youtubelink):
     if youtubelink.startswith("https://www.youtube.com/watch?v="):
         video_id = youtubelink.split("v=")[1]
     elif youtubelink.startswith("https://youtu.be/"):
         video_id = youtubelink.split("be/")[1]
-    transkript = YouTubeTranscriptApi.get_transcript(video_id, languages=['de', 'en'])
+    transkript = YouTubeTranscriptApi.get_transcript(
+        video_id, languages=['de', 'en'])
     text = ""
     for satz in transkript:
         text += satz["text"] + " "
     return text
 
-@lru_cache(maxsize=32)
+
 def extract_text_from_website(url):
-    response = requests.get(url)
+    validate_url(url)
+    response = requests.get(url, timeout=10)
     soup = BeautifulSoup(response.text, "html.parser")
     text = soup.get_text()
     return text
 
-#TODO eigene funktionen für text und pdf <-- sieht wohl so aus dass ich das dringend benötig eund den gesamtflow neu denken muss!!!!!
+# TODO eigene funktionen für text und pdf <-- sieht wohl so aus dass ich d
+
+
 def text_extraction_youtube_website(filePath):
     try:
 
         if "youtu" in filePath.lower():  # Erkennt verschiedene YouTube-URL-Formate
             transkript = extract_transkript(filePath)
             return transkript
-        #website analyse
+        # website analyse
         elif "http" in filePath.lower():  # Erkennt verschiedene URL-Formate
             text = extract_text_from_website(filePath)
             return text
@@ -65,8 +68,6 @@ def text_extraction_youtube_website(filePath):
 def real_ai_analyse_fortext(text):
     try:
 
-
-
         api_key = get_api_key()
 
         if not api_key:
@@ -74,18 +75,18 @@ def real_ai_analyse_fortext(text):
 
         client = OpenAI(api_key=api_key)
 
-
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
                 {"role": "user",
-                "content": text}]
+                 "content": text}]
         )
 
         return response.choices[0].message.content
 
     except Exception as e:
         return f"Fehler bei der KI-Analyse: {str(e)}"
+
 
 def real_ai_analyse_forpdf(pdf_path, prompt):
     try:
@@ -157,10 +158,3 @@ def real_ai_analyse_forpdf(pdf_path, prompt):
 
     except Exception as e:
         return f"Error analyzing PDF: {str(e)}"
-
-
-
-
-
-
-
