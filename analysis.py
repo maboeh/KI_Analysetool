@@ -6,6 +6,7 @@ from bs4 import BeautifulSoup
 import requests
 from openai import OpenAI
 from config import get_api_key
+from security import validate_url
 
 
 
@@ -14,6 +15,7 @@ from config import get_api_key
 def is_pdf_file(filepath):
     _, fileextension = os.path.splitext(filepath)
     return fileextension.lower() == ".pdf"
+
 
 def extract_transkript(youtubelink):
     if youtubelink.startswith("https://www.youtube.com/watch?v="):
@@ -26,20 +28,43 @@ def extract_transkript(youtubelink):
         return ""
     return " ".join(satz["text"] for satz in transkript) + " "
 
+from urllib.parse import urljoin
+
 def extract_text_from_website(url):
-    response = requests.get(url)
+    session = requests.Session()
+    validate_url(url)
+    response = session.get(url, allow_redirects=False, timeout=10)
+
+    redirects = 0
+    max_redirects = 5
+
+    while response.is_redirect and redirects < max_redirects:
+        redirect_url = response.headers['Location']
+        # Handle relative redirects
+        redirect_url = urljoin(url, redirect_url)
+        validate_url(redirect_url)
+        response = session.get(redirect_url, allow_redirects=False, timeout=10)
+        redirects += 1
+        url = redirect_url
+
+
+def extract_text_from_website(url):
+    validate_url(url)
+    response = requests.get(url, timeout=10)
     soup = BeautifulSoup(response.text, "html.parser")
     text = soup.get_text()
     return text
 
-#TODO eigene funktionen für text und pdf <-- sieht wohl so aus dass ich das dringend benötig eund den gesamtflow neu denken muss!!!!!
+# TODO eigene funktionen für text und pdf <-- sieht wohl so aus dass ich d
+
+
 def text_extraction_youtube_website(filePath):
     try:
 
         if "youtu" in filePath.lower():  # Erkennt verschiedene YouTube-URL-Formate
             transkript = extract_transkript(filePath)
             return transkript
-        #website analyse
+        # website analyse
         elif "http" in filePath.lower():  # Erkennt verschiedene URL-Formate
             text = extract_text_from_website(filePath)
             return text
@@ -62,8 +87,6 @@ def text_extraction_youtube_website(filePath):
 def real_ai_analyse_fortext(text):
     try:
 
-
-
         api_key = get_api_key()
 
         if not api_key:
@@ -71,18 +94,18 @@ def real_ai_analyse_fortext(text):
 
         client = OpenAI(api_key=api_key)
 
-
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
                 {"role": "user",
-                "content": text}]
+                 "content": text}]
         )
 
         return response.choices[0].message.content
 
     except Exception as e:
         return f"Fehler bei der KI-Analyse: {str(e)}"
+
 
 def real_ai_analyse_forpdf(pdf_path, prompt):
     try:
@@ -154,10 +177,3 @@ def real_ai_analyse_forpdf(pdf_path, prompt):
 
     except Exception as e:
         return f"Error analyzing PDF: {str(e)}"
-
-
-
-
-
-
-
