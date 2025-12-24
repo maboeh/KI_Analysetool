@@ -9,6 +9,9 @@ from config import get_api_key
 from security import validate_url
 
 
+
+
+
 def is_pdf_file(filepath):
     _, fileextension = os.path.splitext(filepath)
     return fileextension.lower() == ".pdf"
@@ -25,6 +28,25 @@ def extract_transkript(youtubelink):
     for satz in transkript:
         text += satz["text"] + " "
     return text
+
+from urllib.parse import urljoin
+
+def extract_text_from_website(url):
+    session = requests.Session()
+    validate_url(url)
+    response = session.get(url, allow_redirects=False, timeout=10)
+
+    redirects = 0
+    max_redirects = 5
+
+    while response.is_redirect and redirects < max_redirects:
+        redirect_url = response.headers['Location']
+        # Handle relative redirects
+        redirect_url = urljoin(url, redirect_url)
+        validate_url(redirect_url)
+        response = session.get(redirect_url, allow_redirects=False, timeout=10)
+        redirects += 1
+        url = redirect_url
 
 
 def extract_text_from_website(url):
