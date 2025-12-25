@@ -7,7 +7,7 @@ import requests
 from openai import OpenAI
 from config import get_api_key
 from security import validate_url
-
+from urllib.parse import urljoin
 
 
 
@@ -28,7 +28,6 @@ def extract_transkript(youtubelink):
         return ""
     return " ".join(satz["text"] for satz in transkript) + " "
 
-from urllib.parse import urljoin
 
 def extract_text_from_website(url):
     session = requests.Session()
@@ -47,10 +46,6 @@ def extract_text_from_website(url):
         redirects += 1
         url = redirect_url
 
-
-def extract_text_from_website(url):
-    validate_url(url)
-    response = requests.get(url, timeout=10)
     soup = BeautifulSoup(response.text, "html.parser")
     text = soup.get_text()
     return text
