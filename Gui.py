@@ -55,7 +55,7 @@ class Gui():
 
         # Eingabefeld
         api_key_var = tk.StringVar()
-        entry = ttk.Entry(dialog, textvariable=api_key_var, width=50)
+        entry = ttk.Entry(dialog, textvariable=api_key_var, width=50, show="*")
         entry.pack(padx=20, pady=5)
 
         # Bestätigungsbutton
@@ -115,8 +115,9 @@ class Gui():
         website_frame.pack(fill=tk.X)
 
         self.website_url = tk.StringVar()
-        website_entry = ttk.Entry(website_frame, textvariable=self.website_url)
-        website_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        self.website_entry = ttk.Entry(website_frame, textvariable=self.website_url)
+        self.website_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        self.website_entry.focus_set()
     def setupYoutubeTab(self):
         # YouTube tab
         youtube_tab = ttk.Frame(self.input_tabs, padding=10)
@@ -354,37 +355,8 @@ class Gui():
         self.output_text.delete(1.0, tk.END)
         markdown_to_tkinter_text(result_text, self.output_text)
         self.output_text.config(state=tk.DISABLED)
-        try:
-            self.window.config(cursor="watch")
-            self.status_var.set("Analyse läuft... Bitte warten.")
-            self.question_button.config(state=tk.DISABLED)
-            self.window.update()
 
-            self.start_analyse()  # texte oder pdf_url extrahieren
-            content = self.analyseResult  # ergebnis der extraktion in content speichern
-            prompt = self.get_prompt(content)
-
-            if "http" in self.analysePath.lower() or "youtu" in self.analysePath.lower():
-                combined_text = prompt.format(text=content)
-                result_analysis = real_ai_analyse_fortext(combined_text)
-
-            else:
-                result_analysis = real_ai_analyse_forpdf(content, prompt)
-
-            self.output_text.config(state=tk.NORMAL)
-            self.output_text.delete(1.0, tk.END)
-            markdown_to_tkinter_text(result_analysis, self.output_text)
-            self.output_text.config(state=tk.DISABLED)
-            self.status_var.set("Analyse abgeschlossen.")
-
-        except Exception as e:
-            messagebox.showerror("Fehler", f"Ein Fehler ist aufgetreten: {str(e)}")
-            self.status_var.set("Fehler bei der Analyse.")
-
-        finally:
-            self.window.config(cursor="")
-            self.question_button.config(state=tk.NORMAL)
-
+        self.window.config(cursor="")
         self.question_button.config(state=tk.NORMAL, text="Frage senden")
         self.status_var.set("Analyse abgeschlossen")
 
