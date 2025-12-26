@@ -47,10 +47,6 @@ def extract_text_from_website(url):
         redirects += 1
         url = redirect_url
 
-
-def extract_text_from_website(url):
-    validate_url(url)
-    response = requests.get(url, timeout=10)
     soup = BeautifulSoup(response.text, "html.parser")
     text = soup.get_text()
     return text
