@@ -1,15 +1,8 @@
 
 import os
 
-from youtube_transcript_api import YouTubeTranscriptApi
-from bs4 import BeautifulSoup
-import requests
-from openai import OpenAI
 from config import get_api_key
 from security import validate_url
-
-
-
 
 
 def is_pdf_file(filepath):
@@ -18,6 +11,7 @@ def is_pdf_file(filepath):
 
 
 def extract_transkript(youtubelink):
+    from youtube_transcript_api import YouTubeTranscriptApi
     if youtubelink.startswith("https://www.youtube.com/watch?v="):
         video_id = youtubelink.split("v=")[1]
     elif youtubelink.startswith("https://youtu.be/"):
@@ -28,27 +22,10 @@ def extract_transkript(youtubelink):
         return ""
     return " ".join(satz["text"] for satz in transkript) + " "
 
-from urllib.parse import urljoin
 
 def extract_text_from_website(url):
-    session = requests.Session()
-    validate_url(url)
-    response = session.get(url, allow_redirects=False, timeout=10)
-
-    redirects = 0
-    max_redirects = 5
-
-    while response.is_redirect and redirects < max_redirects:
-        redirect_url = response.headers['Location']
-        # Handle relative redirects
-        redirect_url = urljoin(url, redirect_url)
-        validate_url(redirect_url)
-        response = session.get(redirect_url, allow_redirects=False, timeout=10)
-        redirects += 1
-        url = redirect_url
-
-
-def extract_text_from_website(url):
+    import requests
+    from bs4 import BeautifulSoup
     validate_url(url)
     response = requests.get(url, timeout=10)
     soup = BeautifulSoup(response.text, "html.parser")
@@ -86,7 +63,7 @@ def text_extraction_youtube_website(filePath):
 
 def real_ai_analyse_fortext(text):
     try:
-
+        from openai import OpenAI
         api_key = get_api_key()
 
         if not api_key:
@@ -109,7 +86,7 @@ def real_ai_analyse_fortext(text):
 
 def real_ai_analyse_forpdf(pdf_path, prompt):
     try:
-
+        from openai import OpenAI
         api_key = get_api_key()
         if not api_key:
             return "Fehler: Kein API-Schlüssel verfügbar"
