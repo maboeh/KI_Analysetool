@@ -100,10 +100,22 @@ class Gui():
         # Tabs for different input types
         self.input_tabs = ttk.Notebook(self.sources_frame)
         self.input_tabs.grid(row=0, column=0, sticky=tk.W + tk.E)
+        self.input_tabs.bind("<<NotebookTabChanged>>", self.on_tab_change)
 
         self.setupWebsiteTab()
         self.setupYoutubeTab()
         self.setupPdfTab()
+
+    def on_tab_change(self, event):
+        """Sets focus to the input field of the active tab."""
+        tab_index = self.input_tabs.index(self.input_tabs.select())
+        if tab_index == 0:
+            self.website_entry.focus_set()
+        elif tab_index == 1:
+            self.youtube_entry.focus_set()
+        elif tab_index == 2:
+            self.pdf_entry.focus_set()
+
     def setupWebsiteTab(self):
         # Website tab
         website_tab = ttk.Frame(self.input_tabs, padding=10)
@@ -115,8 +127,10 @@ class Gui():
         website_frame.pack(fill=tk.X)
 
         self.website_url = tk.StringVar()
-        website_entry = ttk.Entry(website_frame, textvariable=self.website_url)
-        website_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        self.website_entry = ttk.Entry(website_frame, textvariable=self.website_url)
+        self.website_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        self.website_entry.focus_set()
+
     def setupYoutubeTab(self):
         # YouTube tab
         youtube_tab = ttk.Frame(self.input_tabs, padding=10)
@@ -128,8 +142,8 @@ class Gui():
         youtube_frame.pack(fill=tk.X)
 
         self.youtube_url = tk.StringVar()
-        youtube_entry = ttk.Entry(youtube_frame, textvariable=self.youtube_url)
-        youtube_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        self.youtube_entry = ttk.Entry(youtube_frame, textvariable=self.youtube_url)
+        self.youtube_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
     def setupPdfTab(self):
         # PDF tab
         pdf_tab = ttk.Frame(self.input_tabs, padding=10)
