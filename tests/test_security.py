@@ -1,6 +1,8 @@
+
 import unittest
 from unittest.mock import patch, MagicMock
 from security import validate_url, SecurityException
+import analysis
 import socket
 import analysis
 
@@ -13,6 +15,7 @@ class TestSecurity(unittest.TestCase):
             (socket.AF_INET, socket.SOCK_STREAM, 6, '', ('142.250.190.46', 80))
         ]
         try:
+            # The new validate_url returns None on success, not the URL
             validate_url("https://google.com")
         except SecurityException as e:
             self.fail(f"validate_url raised SecurityException unexpectedly: {e}")
@@ -56,7 +59,6 @@ class TestSecurity(unittest.TestCase):
              (socket.AF_INET6, socket.SOCK_STREAM, 6, '', ('::1', 80, 0, 0))
         ]
         with self.assertRaises(SecurityException) as cm:
-            # Note: urllib.parse handles bracketed IPv6 literals in hostname
             validate_url("http://[::1]")
         self.assertIn("URL points to a restricted IP address", str(cm.exception))
 
@@ -93,6 +95,7 @@ class TestAnalysisSecurity(unittest.TestCase):
         url = "https://example.com"
         mock_session = mock_session_cls.return_value
 
+        mock_session = mock_session_cls.return_value
         mock_response = MagicMock()
         mock_response.text = "<html><body>Safe content</body></html>"
         mock_response.status_code = 200
@@ -107,7 +110,6 @@ class TestAnalysisSecurity(unittest.TestCase):
 
         self.assertIn("Safe content", result)
         mock_session.get.assert_called_once()
-
 
 if __name__ == '__main__':
     unittest.main()

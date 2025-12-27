@@ -1,6 +1,4 @@
-## Sentinel's Journal
-
-## 2024-05-22 - [SSRF Risk in Website Analysis]
-**Vulnerability:** Server-Side Request Forgery (SSRF) risk in `extract_text_from_website` function.
-**Learning:** The application accepts a URL from the user and directly passes it to `requests.get()` without any validation or filtering. This could allow an attacker to make the server send requests to internal network resources (e.g., `http://localhost`, `http://192.168.x.x`) or other sensitive endpoints, potentially exposing internal services or metadata services (like AWS instance metadata).
-**Prevention:** Implement strict URL validation. Allow only specific schemes (http, https). Block private/local IP ranges (localhost, 127.0.0.1, 10.x.x.x, 192.168.x.x, etc.). Ideally, use a dedicated library or robust regex for IP checking if domain resolution is involved, but at least blocking common local addresses is a good first step.
+## 2024-05-23 - Shadowed Functions Causing Security Regressions
+**Vulnerability:** Critical security functions (`validate_url` in `security.py` and `extract_text_from_website` in `analysis.py`) were redefined later in the same file with weaker, insecure implementations.
+**Learning:** Python allows function redefinition without warning. The weaker `validate_url` used `socket.gethostbyname` (IPv4 only) instead of `socket.getaddrinfo` (IPv4/IPv6), and `extract_text_from_website` used `requests.get` directly, bypassing redirect validation and exposing the app to SSRF.
+**Prevention:** Use linters (like `flake8` with `F811`) to detect redefinition of unused names. Always check for duplicate function definitions when reviewing code. Ensure comprehensive tests cover negative cases (e.g., blocking private IPs) so that if a function is shadowed by a weaker one, tests fail.
