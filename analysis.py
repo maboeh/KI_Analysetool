@@ -1,6 +1,6 @@
 
 import os
-from urllib.parse import urlparse
+from functools import lru_cache
 
 from youtube_transcript_api import YouTubeTranscriptApi
 from bs4 import BeautifulSoup
@@ -17,6 +17,7 @@ def is_pdf_file(filepath):
     _, fileextension = os.path.splitext(filepath)
     return fileextension.lower() == ".pdf"
 
+@lru_cache(maxsize=32)
 
 def extract_transkript(youtubelink):
     if youtubelink.startswith("https://www.youtube.com/watch?v="):
