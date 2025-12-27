@@ -265,47 +265,137 @@ class Gui():
         self.output_text.config(state=tk.DISABLED)
         self.window.update()
 
-        # Run analysis in background thread
-        threading.Thread(target=self.run_analysis_thread, args=(input_data, prompt_type, custom_prompt), daemon=True).start()
+    def send_question(self):
+        # UI Input Gathering and Validation
+        tab_id = self.input_tabs.select()
+        tab_index = self.input_tabs.index(tab_id)
 
-    def run_analysis_thread(self, input_data, prompt_type, custom_prompt):
+        input_path = ""
+        is_pdf_upload = False
+
+        if tab_index == 0:  # Website
+            input_path = self.website_url.get().strip()
+        elif tab_index == 1:  # YouTube
+            input_path = self.youtube_url.get().strip()
+        elif tab_index == 2:  # PDF
+            # Check URL first, then file path
+            url_val = self.pdf_url.get().strip()
+            path_val = self.pdf_path_var.get().strip()
+            if url_val:
+                input_path = url_val
+            elif path_val:
+                input_path = path_val
+                is_pdf_upload = True
+
+        if not input_path:
+            messagebox.showwarning("Fehlende Eingabe", "Bitte gib eine URL ein oder wähle eine Datei aus.")
+            return
+
+        # Prepare for background work
+        self.question_button.config(state=tk.DISABLED, text="Verarbeite...")
+        self.status_var.set("Analyse läuft...")
+        self.output_text.config(state=tk.NORMAL)
+        self.output_text.delete(1.0, tk.END)
+        self.output_text.insert(tk.END, "Analyse läuft, bitte warten...\n")
+        self.output_text.config(state=tk.DISABLED)
+
+        # Get prompt params before threading
+        prompt_value = self.combobox.get()
+        custom_prompt_text = self.question_text.get(1.0, tk.END).strip()
+
+        # Run analysis in a separate thread
+        thread = threading.Thread(
+            target=self.run_analysis_thread,
+            args=(input_path, tab_index, is_pdf_upload, prompt_value, custom_prompt_text)
+        )
+        thread.daemon = True
+        thread.start()
+
+    def run_analysis_thread(self, input_path, tab_index, is_pdf_upload, prompt_value, custom_prompt_text):
         try:
-            content = self._perform_extraction(input_data['type'], input_data['path'])
-            final_prompt = self._generate_prompt_text(prompt_type, custom_prompt, content)
+            content = ""
+            self.analysePath = input_path # Maintain compatibility
 
-            # Analysis logic
-            result_analysis = ""
-            if input_data['type'] in ['website', 'youtube']:
-                result_analysis = real_ai_analyse_fortext(final_prompt)
+            # Step 1: Extraction
+            if tab_index in [0, 1]: # Website or YouTube
+                content = text_extraction_youtube_website(input_path)
+                self.analyseResult = content
+            elif tab_index == 2: # PDF
+                if is_pdf_upload:
+                    content = input_path # It's the file path
+                else:
+                    content = input_path
+                self.analyseResult = content
+
+            # Step 2: Prompt Generation
+            prompt = ""
+            if prompt_value == "Zusammenfassung":
+                prompt = "Fasse den Text zusammen:{text}"
+            elif prompt_value == "Keyword-Extraktion":
+                prompt = "Extrahiere Schlüsselwörter aus diesem Text: {text}".format(text=content)
+            elif prompt_value == "Sentiment Analyse":
+                prompt = "Analysiere die Stimmung und den Tonfall dieses Textes: {text}".format(text=content)
+            elif prompt_value == "Themen-Erkennung":
+                prompt = "Erkenne die Hauptthemen des nachfolgendes Textes: {text}".format(text=content)
             else:
-                result_analysis = real_ai_analyse_forpdf(content, final_prompt)
+                prompt = f"{custom_prompt_text} {{text}}".format(text=content)
 
-            self.window.after(0, self.update_ui_success, result_analysis, content, input_data['path'])
+            # Step 3: AI Analysis
+            result_analysis = ""
+            if "http" in input_path.lower() or "youtu" in input_path.lower():
+                try:
+                    combined_text = prompt.format(text=content)
+                except Exception:
+                    combined_text = prompt
+                result_analysis = real_ai_analyse_fortext(combined_text)
+            else:
+                result_analysis = real_ai_analyse_forpdf(content, prompt)
+
+            # Schedule UI Update
+            self.window.after(0, self.analysis_complete, result_analysis)
 
         except Exception as e:
-            self.window.after(0, self.update_ui_error, str(e))
+            error_msg = f"Ein Fehler ist aufgetreten:\n{str(e)}"
+            self.window.after(0, self.analysis_complete, error_msg)
 
-    def update_ui_success(self, result, content, path):
-        # Update state
-        self.analyseResult = content
-        self.analysePath = path
-
+    def analysis_complete(self, result_text):
         self.output_text.config(state=tk.NORMAL)
         self.output_text.delete(1.0, tk.END)
-        markdown_to_tkinter_text(result, self.output_text)
+        markdown_to_tkinter_text(result_text, self.output_text)
         self.output_text.config(state=tk.DISABLED)
-        self.reset_ui_state()
+        try:
+            self.window.config(cursor="watch")
+            self.status_var.set("Analyse läuft... Bitte warten.")
+            self.question_button.config(state=tk.DISABLED)
+            self.window.update()
 
-    def update_ui_error(self, error_message):
-        self.output_text.config(state=tk.NORMAL)
-        self.output_text.delete(1.0, tk.END)
-        self.output_text.insert(tk.END, f"Fehler: {error_message}")
-        self.output_text.config(state=tk.DISABLED)
-        self.reset_ui_state()
+            self.start_analyse()  # texte oder pdf_url extrahieren
+            content = self.analyseResult  # ergebnis der extraktion in content speichern
+            prompt = self.get_prompt(content)
 
-    def reset_ui_state(self):
+            if "http" in self.analysePath.lower() or "youtu" in self.analysePath.lower():
+                combined_text = prompt.format(text=content)
+                result_analysis = real_ai_analyse_fortext(combined_text)
+
+            else:
+                result_analysis = real_ai_analyse_forpdf(content, prompt)
+
+            self.output_text.config(state=tk.NORMAL)
+            self.output_text.delete(1.0, tk.END)
+            markdown_to_tkinter_text(result_analysis, self.output_text)
+            self.output_text.config(state=tk.DISABLED)
+            self.status_var.set("Analyse abgeschlossen.")
+
+        except Exception as e:
+            messagebox.showerror("Fehler", f"Ein Fehler ist aufgetreten: {str(e)}")
+            self.status_var.set("Fehler bei der Analyse.")
+
+        finally:
+            self.window.config(cursor="")
+            self.question_button.config(state=tk.NORMAL)
+
         self.question_button.config(state=tk.NORMAL, text="Frage senden")
-        self.status_var.set("Bereit")
+        self.status_var.set("Analyse abgeschlossen")
 
     def save_note(self):
         self.notes

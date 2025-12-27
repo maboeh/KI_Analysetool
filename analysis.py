@@ -1,11 +1,13 @@
 
 import os
+from urllib.parse import urlparse
 
 from youtube_transcript_api import YouTubeTranscriptApi
 from bs4 import BeautifulSoup
 import requests
 from openai import OpenAI
 from config import get_api_key
+from security import validate_url
 
 
 
@@ -15,31 +17,44 @@ def is_pdf_file(filepath):
     _, fileextension = os.path.splitext(filepath)
     return fileextension.lower() == ".pdf"
 
+
 def extract_transkript(youtubelink):
     if youtubelink.startswith("https://www.youtube.com/watch?v="):
         video_id = youtubelink.split("v=")[1]
     elif youtubelink.startswith("https://youtu.be/"):
         video_id = youtubelink.split("be/")[1]
     transkript = YouTubeTranscriptApi.get_transcript(video_id, languages=['de', 'en'])
-    text = ""
-    for satz in transkript:
-        text += satz["text"] + " "
-    return text
+    # Optimization: Use join for O(n) performance instead of O(n^2) loop concatenation
+    if not transkript:
+        return ""
+    return " ".join(satz["text"] for satz in transkript) + " "
+
+from urllib.parse import urljoin
 
 def extract_text_from_website(url):
-    response = requests.get(url)
-    soup = BeautifulSoup(response.text, "html.parser")
-    text = soup.get_text()
-    return text
+    parsed_url = urlparse(url)
+    if parsed_url.scheme not in ('http', 'https'):
+        raise ValueError("Invalid URL scheme. Only 'http' and 'https' are supported.")
 
-#TODO eigene funktionen für text und pdf <-- sieht wohl so aus dass ich das dringend benötig eund den gesamtflow neu denken muss!!!!!
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, "html.parser")
+        text = soup.get_text()
+        return text
+    except requests.exceptions.RequestException as e:
+        raise Exception(f"Error fetching website: {str(e)}")
+
+# TODO eigene funktionen für text und pdf <-- sieht wohl so aus dass ich d
+
+
 def text_extraction_youtube_website(filePath):
     try:
 
         if "youtu" in filePath.lower():  # Erkennt verschiedene YouTube-URL-Formate
             transkript = extract_transkript(filePath)
             return transkript
-        #website analyse
+        # website analyse
         elif "http" in filePath.lower():  # Erkennt verschiedene URL-Formate
             text = extract_text_from_website(filePath)
             return text
@@ -62,8 +77,6 @@ def text_extraction_youtube_website(filePath):
 def real_ai_analyse_fortext(text):
     try:
 
-
-
         api_key = get_api_key()
 
         if not api_key:
@@ -71,18 +84,18 @@ def real_ai_analyse_fortext(text):
 
         client = OpenAI(api_key=api_key)
 
-
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
                 {"role": "user",
-                "content": text}]
+                 "content": text}]
         )
 
         return response.choices[0].message.content
 
     except Exception as e:
         return f"Fehler bei der KI-Analyse: {str(e)}"
+
 
 def real_ai_analyse_forpdf(pdf_path, prompt):
     try:
@@ -154,10 +167,3 @@ def real_ai_analyse_forpdf(pdf_path, prompt):
 
     except Exception as e:
         return f"Error analyzing PDF: {str(e)}"
-
-
-
-
-
-
-
