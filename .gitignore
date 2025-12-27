@@ -2,6 +2,3 @@
 /.idea/
 config.ini
 .idea/
-__pycache__/
-*.pyc
-.jules/
