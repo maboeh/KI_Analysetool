@@ -2,16 +2,9 @@
 import os
 from functools import lru_cache
 
-from youtube_transcript_api import YouTubeTranscriptApi
-from bs4 import BeautifulSoup
-import requests
-from openai import OpenAI
 from config import get_api_key
 from security import validate_url, SecurityException
 from urllib.parse import urljoin
-
-
-
 
 def is_pdf_file(filepath):
     _, fileextension = os.path.splitext(filepath)
@@ -20,6 +13,7 @@ def is_pdf_file(filepath):
 @lru_cache(maxsize=32)
 
 def extract_transkript(youtubelink):
+    from youtube_transcript_api import YouTubeTranscriptApi
     if youtubelink.startswith("https://www.youtube.com/watch?v="):
         video_id = youtubelink.split("v=")[1]
     elif youtubelink.startswith("https://youtu.be/"):
@@ -114,7 +108,7 @@ def text_extraction_youtube_website(filePath):
 
 def real_ai_analyse_fortext(text):
     try:
-
+        from openai import OpenAI
         api_key = get_api_key()
 
         if not api_key:
@@ -137,7 +131,7 @@ def real_ai_analyse_fortext(text):
 
 def real_ai_analyse_forpdf(pdf_path, prompt):
     try:
-
+        from openai import OpenAI
         api_key = get_api_key()
         if not api_key:
             return "Fehler: Kein API-Schlüssel verfügbar"

@@ -427,6 +427,13 @@ class Gui():
 
         if not file_path:
             return
+
+        # Lazy import of reportlab to speed up application startup
+        from reportlab.lib.pagesizes import letter
+        from reportlab.lib.styles import getSampleStyleSheet
+        from reportlab.lib.units import inch
+        from reportlab.platypus import SimpleDocTemplate, Spacer, Paragraph
+
         pdf = SimpleDocTemplate(file_path, pagesize=letter)
         styles = getSampleStyleSheet()
         story = []
