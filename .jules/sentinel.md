@@ -1,0 +1,4 @@
+## 2024-05-23 - Shadowed Functions Causing Security Regressions
+**Vulnerability:** Critical security functions (`validate_url` in `security.py` and `extract_text_from_website` in `analysis.py`) were redefined later in the same file with weaker, insecure implementations.
+**Learning:** Python allows function redefinition without warning. The weaker `validate_url` used `socket.gethostbyname` (IPv4 only) instead of `socket.getaddrinfo` (IPv4/IPv6), and `extract_text_from_website` used `requests.get` directly, bypassing redirect validation and exposing the app to SSRF.
+**Prevention:** Use linters (like `flake8` with `F811`) to detect redefinition of unused names. Always check for duplicate function definitions when reviewing code. Ensure comprehensive tests cover negative cases (e.g., blocking private IPs) so that if a function is shadowed by a weaker one, tests fail.

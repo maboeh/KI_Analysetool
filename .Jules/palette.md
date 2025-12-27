@@ -4,3 +4,6 @@
 ## 2024-10-24 - Async Loading States
 **Learning:** Users perceive the application as "crashed" when synchronous long-running operations block the UI without visual feedback. Tkinter requires explicit `update()` calls or threading to update the UI during these operations.
 **Action:** Always implement a visual loading indicator (cursor change, status bar update) and disable trigger buttons before starting any potentially long-running operation, even if using the main thread.
+## 2024-10-24 - Zombie Code Freezing UI
+**Learning:** When migrating from synchronous to threaded logic, verify that the old synchronous code is fully removed. In this case, `analysis_complete` contained the entire old synchronous analysis logic, causing the UI to freeze *after* the threaded analysis was done, defeating the purpose of threading.
+**Action:** When refactoring for performance/threading, double-check callbacks to ensure they only handle UI updates and don't accidentally re-trigger the heavy computation.
