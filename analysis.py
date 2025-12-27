@@ -10,6 +10,9 @@ from config import get_api_key
 from security import validate_url
 
 
+
+
+
 def is_pdf_file(filepath):
     _, fileextension = os.path.splitext(filepath)
     return fileextension.lower() == ".pdf"
@@ -21,20 +24,27 @@ def extract_transkript(youtubelink):
         video_id = youtubelink.split("v=")[1]
     elif youtubelink.startswith("https://youtu.be/"):
         video_id = youtubelink.split("be/")[1]
-    transkript = YouTubeTranscriptApi.get_transcript(
-        video_id, languages=['de', 'en'])
-    text = ""
-    for satz in transkript:
-        text += satz["text"] + " "
-    return text
+    transkript = YouTubeTranscriptApi.get_transcript(video_id, languages=['de', 'en'])
+    # Optimization: Use join for O(n) performance instead of O(n^2) loop concatenation
+    if not transkript:
+        return ""
+    return " ".join(satz["text"] for satz in transkript) + " "
 
+from urllib.parse import urljoin
 
 def extract_text_from_website(url):
-    validate_url(url)
-    response = requests.get(url, timeout=10)
-    soup = BeautifulSoup(response.text, "html.parser")
-    text = soup.get_text()
-    return text
+    parsed_url = urlparse(url)
+    if parsed_url.scheme not in ('http', 'https'):
+        raise ValueError("Invalid URL scheme. Only 'http' and 'https' are supported.")
+
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, "html.parser")
+        text = soup.get_text()
+        return text
+    except requests.exceptions.RequestException as e:
+        raise Exception(f"Error fetching website: {str(e)}")
 
 # TODO eigene funktionen für text und pdf <-- sieht wohl so aus dass ich d
 
