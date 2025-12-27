@@ -1,66 +1,91 @@
-import socket
 import ipaddress
+import socket
 from urllib.parse import urlparse
 
-def validate_url(url):
+class SecurityException(Exception):
+    """Exception raised for security violations."""
+    pass
+
+def validate_url(url: str) -> None:
     """
-    Validates a URL to prevent Server-Side Request Forgery (SSRF).
-
-    Checks:
-    - Scheme is http or https.
-    - Hostname resolves to a public IP address.
-
-    Raises:
-    - ValueError if URL is invalid or unsafe.
+    Validates a URL to prevent SSRF attacks.
+    Raises SecurityException if the URL is invalid or points to a private/restricted network.
+    Checks IPv4 and IPv6 addresses.
+    Blocks:
+    - Private networks (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, fc00::/7)
+    - Loopback addresses (127.0.0.0/8, ::1)
+    - Link-local addresses (169.254.0.0/16, fe80::/10) - Prevents Cloud Metadata attacks
+    - Multicast addresses
+    - Reserved addresses
     """
     try:
-        parsed_url = urlparse(url)
+        parsed = urlparse(url)
+        if parsed.scheme not in ('http', 'https'):
+            raise SecurityException("Invalid URL scheme. Only http and https are allowed.")
+
+        hostname = parsed.hostname
+        if not hostname:
+             raise SecurityException("Invalid URL: No hostname found.")
+
+        try:
+            # getaddrinfo returns a list of (family, type, proto, canonname, sockaddr)
+            # sockaddr is a tuple, index 0 is the IP address string
+            addr_infos = socket.getaddrinfo(hostname, None)
+        except socket.error:
+             raise SecurityException("Could not resolve hostname.")
+
+        for addr_info in addr_infos:
+            ip = addr_info[4][0]
+            try:
+                ip_addr = ipaddress.ip_address(ip)
+
+                # Check for various restricted ranges
+                if (ip_addr.is_private or
+                    ip_addr.is_loopback or
+                    ip_addr.is_link_local or
+                    ip_addr.is_multicast or
+                    ip_addr.is_reserved):
+                    raise SecurityException(f"URL points to a restricted IP address: {ip}")
+
+            except ValueError:
+                continue
+
+    except SecurityException:
+        raise
     except Exception as e:
-        raise ValueError(f"Invalid URL format: {str(e)}")
+         raise SecurityException(f"URL validation failed: {str(e)}")
 
-    if parsed_url.scheme not in ('http', 'https'):
-        raise ValueError("URL scheme must be http or https")
+def validate_url(url: str) -> str:
+    """
+    Validates a URL to ensure it does not point to a private or reserved IP address.
+    Returns the URL if valid, otherwise raises ValueError.
+    """
+    parsed = urlparse(url)
 
-    hostname = parsed_url.hostname
+    if parsed.scheme not in ('http', 'https'):
+        raise ValueError(f"Invalid scheme: {parsed.scheme}")
+
+    hostname = parsed.hostname
     if not hostname:
-        raise ValueError("URL must have a hostname")
+        raise ValueError("Invalid URL: No hostname found")
 
     try:
         # Resolve hostname to IP
-        # We use getaddrinfo to get IP addresses.
-        # Note: This is a synchronous DNS lookup.
-        # It's better to verify the IP we are about to connect to,
-        # but requests library doesn't easily let us hook into the connection phase
-        # to verify the resolved IP before sending data, unless we use a custom adapter.
-        # For this level of fix, pre-validation is a good improvement,
-        # though susceptible to TOCTOU (Time-of-Check Time-of-Use) DNS rebinding attacks.
-        # However, it significantly raises the bar.
-
-        addr_info = socket.getaddrinfo(hostname, None)
-
-        for res in addr_info:
-            family, _, _, _, sockaddr = res
-            ip_str = sockaddr[0]
-
-            ip_obj = ipaddress.ip_address(ip_str)
-
-            if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local:
-                 raise ValueError(f"Access to private IP address {ip_str} is forbidden")
-
-            # Check for multicast or reserved?
-            if ip_obj.is_multicast or ip_obj.is_reserved:
-                 raise ValueError(f"Access to reserved/multicast IP address {ip_str} is forbidden")
-
-            # Check for specific blocks like 0.0.0.0
-            if ip_obj.is_unspecified:
-                 raise ValueError(f"Access to unspecified IP address {ip_str} is forbidden")
-
+        # Note: This is vulnerable to DNS rebinding, but provides a basic layer of protection.
+        # For full protection, one would need to control the resolution at the
+        # socket level during connection.
+        ip_str = socket.gethostbyname(hostname)
+        ip = ipaddress.ip_address(ip_str)
     except socket.gaierror:
         raise ValueError(f"Could not resolve hostname: {hostname}")
-    except ValueError as e:
-        # Re-raise our own ValueErrors
-        raise e
-    except Exception as e:
-        raise ValueError(f"Error validating URL: {str(e)}")
+    except ValueError:
+        raise ValueError(f"Invalid IP address: {ip_str}")
 
-    return True
+    if (ip.is_loopback or
+        ip.is_private or
+        ip.is_reserved or
+        ip.is_link_local or
+            ip.is_multicast):
+        raise ValueError(f"URL resolves to a restricted IP address: {ip}")
+
+    return url
