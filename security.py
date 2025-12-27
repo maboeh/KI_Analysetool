@@ -30,6 +30,7 @@ def validate_url(url: str) -> None:
         try:
             # getaddrinfo returns a list of (family, type, proto, canonname, sockaddr)
             # sockaddr is a tuple, index 0 is the IP address string
+            # We want to check ALL resolved IPs
             addr_infos = socket.getaddrinfo(hostname, None)
         except socket.error:
              raise SecurityException("Could not resolve hostname.")

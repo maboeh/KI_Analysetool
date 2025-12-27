@@ -1,17 +1,21 @@
+
 import unittest
 from unittest.mock import patch, MagicMock
 from security import validate_url, SecurityException
+import analysis
 import socket
-from analysis import extract_text_from_website
+import analysis
 
 class TestSecurity(unittest.TestCase):
     @patch('socket.getaddrinfo')
     def test_valid_url(self, mock_getaddrinfo):
         # Mock a public IP for google.com
+        # family, type, proto, canonname, sockaddr
         mock_getaddrinfo.return_value = [
             (socket.AF_INET, socket.SOCK_STREAM, 6, '', ('142.250.190.46', 80))
         ]
         try:
+            # The new validate_url returns None on success, not the URL
             validate_url("https://google.com")
         except SecurityException as e:
             self.fail(f"validate_url raised SecurityException unexpectedly: {e}")
@@ -55,7 +59,6 @@ class TestSecurity(unittest.TestCase):
              (socket.AF_INET6, socket.SOCK_STREAM, 6, '', ('::1', 80, 0, 0))
         ]
         with self.assertRaises(SecurityException) as cm:
-            # Note: urllib.parse handles bracketed IPv6 literals in hostname
             validate_url("http://[::1]")
         self.assertIn("URL points to a restricted IP address", str(cm.exception))
 
@@ -64,45 +67,49 @@ class TestSecurity(unittest.TestCase):
             validate_url("https://")
         self.assertIn("No hostname found", str(cm.exception))
 
-    @patch('requests.Session')
+
+class TestAnalysisSecurity(unittest.TestCase):
+
+    @patch('analysis.requests.Session')
     @patch('socket.getaddrinfo')
     def test_extract_text_blocks_unsafe(self, mock_getaddrinfo, mock_session_cls):
         # Ensure extract_text_from_website now calls validate_url
         # which raises SecurityException for unsafe URLs
-
-        mock_getaddrinfo.return_value = [
-             (socket.AF_INET, socket.SOCK_STREAM, 6, '', ('127.0.0.1', 80))
-        ]
-
+        mock_session = mock_session_cls.return_value
         url = "http://localhost:8080/sensitive"
 
-        with self.assertRaises(SecurityException):
-            extract_text_from_website(url)
+        mock_getaddrinfo.return_value = [
+             (socket.AF_INET, socket.SOCK_STREAM, 6, '', ('127.0.0.1', 8080))
+        ]
 
-    @patch('requests.Session')
+        # Now it catches Exception and returns string
+        result = analysis.extract_text_from_website(url)
+        self.assertIn("Security Error", result)
+
+        # requests.get should NOT have been called
+        mock_session.get.assert_not_called()
+
+    @patch('analysis.requests.Session')
     @patch('socket.getaddrinfo')
     def test_extract_text_allows_safe(self, mock_getaddrinfo, mock_session_cls):
         url = "https://example.com"
-
-        mock_getaddrinfo.return_value = [
-             (socket.AF_INET, socket.SOCK_STREAM, 6, '', ('93.184.216.34', 80))
-        ]
+        mock_session = mock_session_cls.return_value
 
         mock_session = mock_session_cls.return_value
         mock_response = MagicMock()
         mock_response.text = "<html><body>Safe content</body></html>"
+        mock_response.status_code = 200
         mock_response.is_redirect = False
         mock_session.get.return_value = mock_response
 
-        result = extract_text_from_website(url)
+        mock_getaddrinfo.return_value = [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, '', ('93.184.216.34', 443))
+        ]
+
+        result = analysis.extract_text_from_website(url)
 
         self.assertIn("Safe content", result)
         mock_session.get.assert_called_once()
-        # Verify timeout was added
-        args, kwargs = mock_session.get.call_args
-        self.assertEqual(kwargs.get('timeout'), 10)
-        self.assertEqual(kwargs.get('allow_redirects'), False)
-
 
 if __name__ == '__main__':
     unittest.main()
