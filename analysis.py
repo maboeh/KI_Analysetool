@@ -1,13 +1,14 @@
 
 import os
+from functools import lru_cache
 
 from youtube_transcript_api import YouTubeTranscriptApi
 from bs4 import BeautifulSoup
 import requests
 from openai import OpenAI
 from config import get_api_key
-from security import validate_url
-
+from security import validate_url, SecurityException
+from urllib.parse import urljoin
 
 
 
@@ -16,6 +17,7 @@ def is_pdf_file(filepath):
     _, fileextension = os.path.splitext(filepath)
     return fileextension.lower() == ".pdf"
 
+@lru_cache(maxsize=32)
 
 def extract_transkript(youtubelink):
     if youtubelink.startswith("https://www.youtube.com/watch?v="):
@@ -28,29 +30,55 @@ def extract_transkript(youtubelink):
         return ""
     return " ".join(satz["text"] for satz in transkript) + " "
 
-from urllib.parse import urljoin
 
 def extract_text_from_website(url):
+    """
+    Extracts text from a website, following redirects securely.
+    """
     session = requests.Session()
-    validate_url(url)
-    response = session.get(url, allow_redirects=False, timeout=10)
+    # Initial validation
+    try:
+        validate_url(url)
+    except SecurityException as e:
+        return f"Security Error: {str(e)}"
+
+    try:
+        response = session.get(url, allow_redirects=False, timeout=10)
+    except requests.exceptions.RequestException as e:
+        return f"Error fetching URL: {str(e)}"
 
     redirects = 0
     max_redirects = 5
 
     while response.is_redirect and redirects < max_redirects:
-        redirect_url = response.headers['Location']
+        redirect_url = response.headers.get('Location')
+        if not redirect_url:
+            break
+
         # Handle relative redirects
         redirect_url = urljoin(url, redirect_url)
-        validate_url(redirect_url)
-        response = session.get(redirect_url, allow_redirects=False, timeout=10)
+
+        # Validate the redirect target
+        try:
+            validate_url(redirect_url)
+        except SecurityException as e:
+            return f"Security Error on redirect: {str(e)}"
+
+        try:
+            response = session.get(redirect_url, allow_redirects=False, timeout=10)
+        except requests.exceptions.RequestException as e:
+             return f"Error fetching redirect URL: {str(e)}"
+
         redirects += 1
         url = redirect_url
 
+    if redirects >= max_redirects:
+        return "Error: Too many redirects"
 
-def extract_text_from_website(url):
-    validate_url(url)
-    response = requests.get(url, timeout=10)
+    # Now we have the final response
+    if response.status_code != 200:
+        return f"Error: Failed to retrieve content (Status code: {response.status_code})"
+
     soup = BeautifulSoup(response.text, "html.parser")
     text = soup.get_text()
     return text
