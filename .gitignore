@@ -1,4 +1,7 @@
 /config_dir/
 /.idea/
 config.ini
-.idea/__pycache__/
+.idea/
+__pycache__/
+*.pyc
+.jules/
