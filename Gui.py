@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import filedialog, ttk, scrolledtext
 from tkinter import messagebox
+import threading
 import os
 import cProfile
 import threading
@@ -243,51 +244,55 @@ class Gui():
             self.pdf_entry.insert(0, file_path)
             self.pdf_path_var.set(file_path)  # Update the path label
 
-    def start_analyse(self):
+    @staticmethod
+    def _perform_extraction(input_type, path):
+        if input_type in ['website', 'youtube']:
+            return text_extraction_youtube_website(path)
+        elif input_type == 'pdf':
+            return path
+        return ""
 
-        # Get path from the currently selected tab
+    @staticmethod
+    def _generate_prompt_text(prompt_type, custom_prompt, content):
+        if prompt_type == "Zusammenfassung":
+            return f"Fasse den Text zusammen:{content}"
+        elif prompt_type == "Keyword-Extraktion":
+            return f"Extrahiere Schlüsselwörter aus diesem Text: {content}"
+        elif prompt_type == "Sentiment Analyse":
+            return f"Analysiere die Stimmung und den Tonfall dieses Textes: {content}"
+        elif prompt_type == "Themen-Erkennung":
+            return f"Erkenne die Hauptthemen des nachfolgendes Textes: {content}"
+        else:
+            return f"{custom_prompt} {content}"
+
+    def send_question(self):
+        # Gather inputs in main thread
         tab_id = self.input_tabs.select()
         tab_index = self.input_tabs.index(tab_id)
 
-        if tab_index == 0:  # Website tab
-            self.analysePath = self.website_url.get()
-            self.analyseResult = text_extraction_youtube_website(
-                self.analysePath)
-            return self.analyseResult, self.analysePath
-        elif tab_index == 1:  # YouTube tab
-            self.analysePath = self.youtube_url.get()
-            self.analyseResult = text_extraction_youtube_website(
-                self.analysePath)
-            return self.analyseResult, self.analysePath
-        elif tab_index == 2:  # PDF tab
-            self.analysePath = self.pdf_url.get()
-            self.analyseResult = self.pdf_path_var.get()
-            return self.analyseResult
+        input_data = {}
+        if tab_index == 0:  # Website
+            input_data['type'] = 'website'
+            input_data['path'] = self.website_url.get()
+        elif tab_index == 1:  # YouTube
+            input_data['type'] = 'youtube'
+            input_data['path'] = self.youtube_url.get()
+        elif tab_index == 2:  # PDF
+            input_data['type'] = 'pdf'
+            input_data['path'] = self.pdf_path_var.get()
+            input_data['url'] = self.pdf_url.get()
 
-    def get_prompt(self, content):
+        prompt_type = self.combobox.get()
+        custom_prompt = self.question_text.get(1.0, tk.END).strip()
 
-        value = self.combobox.get()
-        if value == "Zusammenfassung":
-            question = "Fasse den Text zusammen:{text}"
-            return question
-        elif value == "Keyword-Extraktion":
-            question = "Extrahiere Schlüsselwörter aus diesem Text: {text}".format(
-                text=content)
-            return question
-        elif value == "Sentiment Analyse":
-            question = "Analysiere die Stimmung und den Tonfall dieses Textes: {text}".format(
-                text=content)
-            return question
-        elif value == "Themen-Erkennung":
-            question = "Erkenne die Hauptthemen des nachfolgendes Textes: {text}".format(
-                text=content)
-            return question
-        else:
-            question_prompt = self.question_text.get(1.0, tk.END).strip()
-            # Format the custom prompt with the content
-            prompt_template = f"{question_prompt} {{text}}".format(
-                text=content)
-            return prompt_template
+        # Update UI to loading state
+        self.question_button.config(state=tk.DISABLED, text="Analyse läuft...")
+        self.status_var.set("Analyse läuft... Bitte warten.")
+        self.output_text.config(state=tk.NORMAL)
+        self.output_text.delete(1.0, tk.END)
+        self.output_text.insert(tk.END, "Analyse wird durchgeführt...\nDies kann einige Sekunden dauern.")
+        self.output_text.config(state=tk.DISABLED)
+        self.window.update()
 
     def send_question(self):
         # UI Input Gathering and Validation

@@ -1,5 +1,6 @@
 
 import os
+from functools import lru_cache
 
 from youtube_transcript_api import YouTubeTranscriptApi
 from bs4 import BeautifulSoup
@@ -16,6 +17,7 @@ def is_pdf_file(filepath):
     _, fileextension = os.path.splitext(filepath)
     return fileextension.lower() == ".pdf"
 
+@lru_cache(maxsize=32)
 
 def extract_transkript(youtubelink):
     if youtubelink.startswith("https://www.youtube.com/watch?v="):
@@ -31,29 +33,18 @@ def extract_transkript(youtubelink):
 from urllib.parse import urljoin
 
 def extract_text_from_website(url):
-    session = requests.Session()
-    validate_url(url)
-    response = session.get(url, allow_redirects=False, timeout=10)
+    parsed_url = urlparse(url)
+    if parsed_url.scheme not in ('http', 'https'):
+        raise ValueError("Invalid URL scheme. Only 'http' and 'https' are supported.")
 
-    redirects = 0
-    max_redirects = 5
-
-    while response.is_redirect and redirects < max_redirects:
-        redirect_url = response.headers['Location']
-        # Handle relative redirects
-        redirect_url = urljoin(url, redirect_url)
-        validate_url(redirect_url)
-        response = session.get(redirect_url, allow_redirects=False, timeout=10)
-        redirects += 1
-        url = redirect_url
-
-
-def extract_text_from_website(url):
-    validate_url(url)
-    response = requests.get(url, timeout=10)
-    soup = BeautifulSoup(response.text, "html.parser")
-    text = soup.get_text()
-    return text
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, "html.parser")
+        text = soup.get_text()
+        return text
+    except requests.exceptions.RequestException as e:
+        raise Exception(f"Error fetching website: {str(e)}")
 
 # TODO eigene funktionen für text und pdf <-- sieht wohl so aus dass ich d
 
