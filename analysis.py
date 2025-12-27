@@ -7,8 +7,8 @@ from bs4 import BeautifulSoup
 import requests
 from openai import OpenAI
 from config import get_api_key
-from security import validate_url
-
+from security import validate_url, SecurityException
+from urllib.parse import urljoin
 
 
 
@@ -30,21 +30,58 @@ def extract_transkript(youtubelink):
         return ""
     return " ".join(satz["text"] for satz in transkript) + " "
 
-from urllib.parse import urljoin
 
 def extract_text_from_website(url):
-    parsed_url = urlparse(url)
-    if parsed_url.scheme not in ('http', 'https'):
-        raise ValueError("Invalid URL scheme. Only 'http' and 'https' are supported.")
+    """
+    Extracts text from a website, following redirects securely.
+    """
+    session = requests.Session()
+    # Initial validation
+    try:
+        validate_url(url)
+    except SecurityException as e:
+        return f"Security Error: {str(e)}"
 
     try:
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.text, "html.parser")
-        text = soup.get_text()
-        return text
+        response = session.get(url, allow_redirects=False, timeout=10)
     except requests.exceptions.RequestException as e:
-        raise Exception(f"Error fetching website: {str(e)}")
+        return f"Error fetching URL: {str(e)}"
+
+    redirects = 0
+    max_redirects = 5
+
+    while response.is_redirect and redirects < max_redirects:
+        redirect_url = response.headers.get('Location')
+        if not redirect_url:
+            break
+
+        # Handle relative redirects
+        redirect_url = urljoin(url, redirect_url)
+
+        # Validate the redirect target
+        try:
+            validate_url(redirect_url)
+        except SecurityException as e:
+            return f"Security Error on redirect: {str(e)}"
+
+        try:
+            response = session.get(redirect_url, allow_redirects=False, timeout=10)
+        except requests.exceptions.RequestException as e:
+             return f"Error fetching redirect URL: {str(e)}"
+
+        redirects += 1
+        url = redirect_url
+
+    if redirects >= max_redirects:
+        return "Error: Too many redirects"
+
+    # Now we have the final response
+    if response.status_code != 200:
+        return f"Error: Failed to retrieve content (Status code: {response.status_code})"
+
+    soup = BeautifulSoup(response.text, "html.parser")
+    text = soup.get_text()
+    return text
 
 # TODO eigene funktionen für text und pdf <-- sieht wohl so aus dass ich d
 
