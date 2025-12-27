@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import filedialog, ttk, scrolledtext
 from tkinter import messagebox
+import threading
 import os
 import cProfile
 import threading
