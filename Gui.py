@@ -119,11 +119,9 @@ class Gui():
         website_frame.pack(fill=tk.X)
 
         self.website_url = tk.StringVar()
-        website_entry = ttk.Entry(website_frame, textvariable=self.website_url)
-        website_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
-        ttk.Button(website_frame, text="X", width=2,
-                   command=lambda: self.website_url.set("")).pack(side=tk.RIGHT)
-
+        self.website_entry = ttk.Entry(website_frame, textvariable=self.website_url)
+        self.website_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        self.website_entry.focus_set()
     def setupYoutubeTab(self):
         # YouTube tab
         youtube_tab = ttk.Frame(self.input_tabs, padding=10)
