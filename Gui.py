@@ -4,12 +4,7 @@ from tkinter import messagebox
 import threading
 import os
 import cProfile
-import threading
 
-from reportlab.lib.pagesizes import letter
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Spacer, Paragraph
 from markdown_formatter import configure_markdown_tags, markdown_to_tkinter_text
 
 
@@ -240,8 +235,19 @@ class Gui():
     # Funktionen
 
     def profile_function(self):
-        cProfile.run('self.send_question()', os.path.join(
-            os.getcwd(), 'profile.txt'), sortby='time')
+        """Profiling-Funktion für Performance-Analyse (nur für Entwicklung)."""
+        import pstats
+        import io
+        profiler = cProfile.Profile()
+        profiler.enable()
+        self.send_question()
+        profiler.disable()
+        # Ergebnisse in Datei speichern
+        profile_path = os.path.join(os.getcwd(), 'profile.txt')
+        with open(profile_path, 'w') as f:
+            stats = pstats.Stats(profiler, stream=f)
+            stats.sort_stats('time')
+            stats.print_stats()
 
     def pdf_file_choose(self):
         file_path = filedialog.askopenfilename(
@@ -271,35 +277,6 @@ class Gui():
             return f"Erkenne die Hauptthemen des nachfolgendes Textes: {content}"
         else:
             return f"{custom_prompt} {content}"
-
-    def send_question(self):
-        # Gather inputs in main thread
-        tab_id = self.input_tabs.select()
-        tab_index = self.input_tabs.index(tab_id)
-
-        input_data = {}
-        if tab_index == 0:  # Website
-            input_data['type'] = 'website'
-            input_data['path'] = self.website_url.get()
-        elif tab_index == 1:  # YouTube
-            input_data['type'] = 'youtube'
-            input_data['path'] = self.youtube_url.get()
-        elif tab_index == 2:  # PDF
-            input_data['type'] = 'pdf'
-            input_data['path'] = self.pdf_path_var.get()
-            input_data['url'] = self.pdf_url.get()
-
-        prompt_type = self.combobox.get()
-        custom_prompt = self.question_text.get(1.0, tk.END).strip()
-
-        # Update UI to loading state
-        self.question_button.config(state=tk.DISABLED, text="Analyse läuft...")
-        self.status_var.set("Analyse läuft... Bitte warten.")
-        self.output_text.config(state=tk.NORMAL)
-        self.output_text.delete(1.0, tk.END)
-        self.output_text.insert(tk.END, "Analyse wird durchgeführt...\nDies kann einige Sekunden dauern.")
-        self.output_text.config(state=tk.DISABLED)
-        self.window.update()
 
     def send_question(self):
         # UI Input Gathering and Validation
