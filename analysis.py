@@ -1,6 +1,8 @@
-
 import os
 from functools import lru_cache
+
+import requests
+from bs4 import BeautifulSoup
 
 from config import get_api_key
 from security import validate_url, SecurityException
