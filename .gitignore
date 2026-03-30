@@ -5,3 +5,4 @@ config.ini
 __pycache__/
 *.pyc
 .jules/
+.Jules/
