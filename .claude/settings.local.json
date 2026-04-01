@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh api:*)",
+      "Bash(git stash:*)",
+      "Bash(git pull:*)",
+      "Bash(git rm:*)",
+      "Bash(git add:*)",
+      "Bash(git push:*)",
+      "Bash(source /Users/maboeh/PycharmProjects/KI_Analysetool/.venv/bin/activate)",
+      "Bash(pip freeze:*)",
+      "Bash(xargs -I {} git push origin --delete {})",
+      "Skill(commit-commands:commit-push-pr)",
+      "Bash(git checkout:*)"
+    ]
+  }
+}
