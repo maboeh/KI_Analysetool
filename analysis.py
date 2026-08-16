@@ -1,14 +1,12 @@
-
 import os
 import time
 import logging
 from urllib.parse import urlparse
 import ipaddress
 
-from youtube_transcript_api import YouTubeTranscriptApi
-from bs4 import BeautifulSoup
 import requests
-from openai import OpenAI
+from bs4 import BeautifulSoup
+
 from config import get_api_key
 
 logger = logging.getLogger(__name__)
@@ -138,6 +136,7 @@ def is_safe_filepath(filepath):
     return True
 
 def extract_transkript(youtubelink):
+    from youtube_transcript_api import YouTubeTranscriptApi
     if youtubelink.startswith("https://www.youtube.com/watch?v="):
         video_id = youtubelink.split("v=")[1].split("&")[0]
     elif youtubelink.startswith("https://youtu.be/"):
@@ -145,10 +144,11 @@ def extract_transkript(youtubelink):
     else:
         raise ValueError(f"Nicht unterstütztes YouTube-URL-Format: {youtubelink}")
     transkript = YouTubeTranscriptApi.get_transcript(video_id, languages=['de', 'en'])
-    text = ""
-    for satz in transkript:
-        text += satz["text"] + " "
-    return text
+    # Optimization: Use join for O(n) performance instead of O(n^2) loop concatenation
+    if not transkript:
+        return ""
+    return " ".join(satz["text"] for satz in transkript) + " "
+
 
 def extract_text_from_website(url):
     if not is_safe_url(url):
@@ -159,7 +159,9 @@ def extract_text_from_website(url):
     text = soup.get_text()
     return text
 
-#TODO eigene funktionen für text und pdf <-- sieht wohl so aus dass ich das dringend benötig eund den gesamtflow neu denken muss!!!!!
+# TODO eigene funktionen für text und pdf <-- sieht wohl so aus dass ich d
+
+
 def text_extraction_youtube_website(filePath):
     try:
 
@@ -225,9 +227,10 @@ def real_ai_analyse_fortext(text):
     except Exception as e:
         return f"Fehler bei der KI-Analyse: {str(e)}"
 
+
 def real_ai_analyse_forpdf(pdf_path, prompt):
     try:
-
+        from openai import OpenAI
         api_key = get_api_key()
         if not api_key:
             return "Fehler: Kein API-Schlüssel verfügbar"

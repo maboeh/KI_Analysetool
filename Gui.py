@@ -1,14 +1,11 @@
 import tkinter as tk
 from tkinter import filedialog, ttk, scrolledtext
 from tkinter import messagebox
+import threading
 import os
 import threading
 import cProfile
 
-from reportlab.lib.pagesizes import letter
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Spacer,Paragraph
 from markdown_formatter import configure_markdown_tags, markdown_to_tkinter_text
 
 
@@ -21,12 +18,11 @@ from config import check_api_key_exists, save_api_key, get_api_key
 
 
 class Gui():
-    def __init__(self,window):
+    def __init__(self, window):
         self.window = window
         self.window.title("KI Analysetool")
         self.window.geometry("800x1000")
         self.window.minsize(700, 900)
-
 
         if not check_api_key_exists():
             self.show_api_key_dialog()
@@ -74,7 +70,8 @@ class Gui():
             else:
                 messagebox.showerror("Fehler", "Bitte gib einen API-Key ein.")
 
-        ttk.Button(dialog, text="Speichern", command=save_and_close).pack(pady=10)
+        ttk.Button(dialog, text="Speichern",
+                   command=save_and_close).pack(pady=10)
 
         # Sicherstellen, dass der Dialog geschlossen wird, bevor die App weiterläuft
         self.window.wait_window(dialog)
@@ -85,32 +82,46 @@ class Gui():
         self.main_frame.pack(fill="both", expand=True)
 
         # Header
-        self.header_label = ttk.Label(self.main_frame, text="KI-Analysetool", style="Header.TLabel")
+        self.header_label = ttk.Label(
+            self.main_frame, text="KI-Analysetool", style="Header.TLabel")
         self.header_label.pack(pady=(0, 15))
 
         # Status bar
         self.status_var = tk.StringVar()
         self.status_var.set("Bereit")
-        self.status_bar = ttk.Label(self.main_frame, textvariable=self.status_var, relief=tk.SUNKEN, anchor=tk.W)
+        self.status_bar = ttk.Label(
+            self.main_frame, textvariable=self.status_var, relief=tk.SUNKEN, anchor=tk.W)
         self.status_bar.pack(fill=tk.X, pady=(15, 0))
 
         self.setupSourcesFrame()
         self.analysis_Frame()
 
-
     def setupSourcesFrame(self):
         # Input-Source Frame
-        self.sources_frame = ttk.LabelFrame(self.main_frame, text="Inhaltsquellen", padding=15)
+        self.sources_frame = ttk.LabelFrame(
+            self.main_frame, text="Inhaltsquellen", padding=15)
         self.sources_frame.pack(fill=tk.X, pady=(0, 15))
         self.sources_frame.columnconfigure(0, weight=1)
 
         # Tabs for different input types
         self.input_tabs = ttk.Notebook(self.sources_frame)
         self.input_tabs.grid(row=0, column=0, sticky=tk.W + tk.E)
+        self.input_tabs.bind("<<NotebookTabChanged>>", self.on_tab_change)
 
         self.setupWebsiteTab()
         self.setupYoutubeTab()
         self.setupPdfTab()
+
+    def on_tab_change(self, event):
+        """Sets focus to the input field of the active tab."""
+        tab_index = self.input_tabs.index(self.input_tabs.select())
+        if tab_index == 0:
+            self.website_entry.focus_set()
+        elif tab_index == 1:
+            self.youtube_entry.focus_set()
+        elif tab_index == 2:
+            self.pdf_entry.focus_set()
+
     def setupWebsiteTab(self):
         # Website tab
         website_tab = ttk.Frame(self.input_tabs, padding=10)
@@ -122,8 +133,10 @@ class Gui():
         website_frame.pack(fill=tk.X)
 
         self.website_url = tk.StringVar()
-        website_entry = ttk.Entry(website_frame, textvariable=self.website_url)
-        website_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        self.website_entry = ttk.Entry(website_frame, textvariable=self.website_url)
+        self.website_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        self.website_entry.focus_set()
+
     def setupYoutubeTab(self):
         # YouTube tab
         youtube_tab = ttk.Frame(self.input_tabs, padding=10)
@@ -135,8 +148,8 @@ class Gui():
         youtube_frame.pack(fill=tk.X)
 
         self.youtube_url = tk.StringVar()
-        youtube_entry = ttk.Entry(youtube_frame, textvariable=self.youtube_url)
-        youtube_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        self.youtube_entry = ttk.Entry(youtube_frame, textvariable=self.youtube_url)
+        self.youtube_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
     def setupPdfTab(self):
         # PDF tab
         pdf_tab = ttk.Frame(self.input_tabs, padding=10)
@@ -150,32 +163,41 @@ class Gui():
         self.pdf_url = tk.StringVar()
         self.pdf_entry = ttk.Entry(pdf_url_frame, textvariable=self.pdf_url)
         self.pdf_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        ttk.Button(pdf_url_frame, text="X", width=2,
+                   command=lambda: self.pdf_url.set("")).pack(side=tk.RIGHT)
 
         ttk.Label(pdf_tab, text="oder").pack(pady=5)
 
-        pdf_upload_button = ttk.Button(pdf_tab, text="PDF hochladen", command=self.pdf_file_choose)
+        pdf_upload_button = ttk.Button(
+            pdf_tab, text="PDF hochladen", command=self.pdf_file_choose)
         pdf_upload_button.pack(pady=5)
 
         self.pdf_path_var = tk.StringVar()
-        self.pdf_path_label = ttk.Label(pdf_tab, textvariable=self.pdf_path_var, wraplength=350)
+        self.pdf_path_label = ttk.Label(
+            pdf_tab, textvariable=self.pdf_path_var, wraplength=350)
         self.pdf_path_label.pack(pady=5)
 
     # ----------------------------------------------------------------------------------------------------------------------------
     def analysis_Frame(self):
         # Analysis and results frame
-        self.analysis_frame = ttk.LabelFrame(self.main_frame, text="Analyse & Ergebnisse", padding=10)
+        self.analysis_frame = ttk.LabelFrame(
+            self.main_frame, text="Analyse & Ergebnisse", padding=10)
         self.analysis_frame.pack(fill=tk.BOTH, expand=True)
         self.analysis_frame.rowconfigure(5, weight=1)
         self.analysis_frame.columnconfigure(0, weight=1)
 
         self.promptFrame()
         self.outPutArea()
+
     def promptFrame(self):
         # Question input
-        ttk.Label(self.analysis_frame, text="Erstelle einen Prompt zu dem Inhalt:").grid(row=0, column=0, sticky=tk.W)
+        ttk.Label(self.analysis_frame, text="Erstelle einen Prompt zu dem Inhalt:").grid(
+            row=0, column=0, sticky=tk.W)
 
-        self.question_text = scrolledtext.ScrolledText(self.analysis_frame, height=4)
-        self.question_text.grid(row=1, column=0, sticky=tk.W + tk.E, pady=(0, 15))
+        self.question_text = scrolledtext.ScrolledText(
+            self.analysis_frame, height=4)
+        self.question_text.grid(
+            row=1, column=0, sticky=tk.W + tk.E, pady=(0, 15))
 
         self.combobox = ttk.Combobox(self.analysis_frame,
                                 values=["Prompt senden", "Zusammenfassung", "Keyword-Extraktion", "Sentiment Analyse",
@@ -183,15 +205,19 @@ class Gui():
         self.combobox.current(1)
         self.combobox.grid(row=2, column=0, sticky=tk.W + tk.E, pady=(0, 15))
 
-        question_button = ttk.Button(self.analysis_frame, text="Frage senden", command=self.send_question)
-        question_button.grid(row=3, column=0, sticky=tk.W + tk.E, pady=(0, 15))
+        self.question_button = ttk.Button(
+            self.analysis_frame, text="Frage senden", command=self.send_question)
+        self.question_button.grid(
+            row=3, column=0, sticky=tk.W + tk.E, pady=(0, 15))
 
         # Separator
         separator = ttk.Separator(self.analysis_frame, orient=tk.HORIZONTAL)
         separator.grid(row=4, column=0, sticky=tk.W + tk.E, pady=10)
+
     def outPutArea(self):
         # Output area
-        ttk.Label(self.analysis_frame, text="Ergebnisse:").grid(row=5, column=0, sticky=tk.W)
+        ttk.Label(self.analysis_frame, text="Ergebnisse:").grid(
+            row=5, column=0, sticky=tk.W)
 
         self.output_text = scrolledtext.ScrolledText(self.analysis_frame, height=10)
         self.output_text.grid(row=6, column=0, sticky=tk.W + tk.E + tk.N + tk.S, pady=(0, 10))
@@ -204,10 +230,12 @@ class Gui():
         buttons_frame = ttk.Frame(self.analysis_frame)
         buttons_frame.grid(row=7, column=0, sticky=tk.W + tk.E, pady=(0, 10))
 
-        export_button = ttk.Button(buttons_frame, text="Notiz exportieren", command=self.export_notes_as_pdf)
+        export_button = ttk.Button(
+            buttons_frame, text="Notiz exportieren", command=self.export_notes_as_pdf)
         export_button.grid(row=0, column=0)
 
-        clipboard_button = ttk.Button(buttons_frame, text="In Zwischenablage", command=self.copy_notes_as_text)
+        clipboard_button = ttk.Button(
+            buttons_frame, text="In Zwischenablage", command=self.copy_notes_as_text)
         clipboard_button.grid(row=0, column=2)
 
     # Funktionen
@@ -222,7 +250,8 @@ class Gui():
         messagebox.showinfo("Profiling", f"Profil gespeichert unter: {profile_path}")
 
     def pdf_file_choose(self):
-        file_path = filedialog.askopenfilename(filetypes=[("PDF-Dateien", "*.pdf")])
+        file_path = filedialog.askopenfilename(
+            filetypes=[("PDF-Dateien", "*.pdf")])
         if file_path:
             self.pdf_entry.delete(0, tk.END)
             self.pdf_entry.insert(0, file_path)
@@ -491,7 +520,7 @@ class Gui():
     def _display_result(self, result_analysis):
         self.output_text.config(state=tk.NORMAL)
         self.output_text.delete(1.0, tk.END)
-        markdown_to_tkinter_text(result_analysis, self.output_text)
+        self.output_text.insert(tk.END, "Analyse läuft, bitte warten...\n")
         self.output_text.config(state=tk.DISABLED)
         self.status_var.set("Analyse abgeschlossen")
 
@@ -502,6 +531,79 @@ class Gui():
         self.output_text.config(state=tk.DISABLED)
         self.status_var.set("Fehler bei der Analyse")
         messagebox.showerror("Fehler bei der Analyse", error_msg)
+
+        # Get prompt params before threading
+        prompt_value = self.combobox.get()
+        custom_prompt_text = self.question_text.get(1.0, tk.END).strip()
+
+        # Run analysis in a separate thread
+        thread = threading.Thread(
+            target=self.run_analysis_thread,
+            args=(input_path, tab_index, is_pdf_upload,
+                  prompt_value, custom_prompt_text)
+        )
+        thread.daemon = True
+        thread.start()
+
+    def run_analysis_thread(self, input_path, tab_index, is_pdf_upload, prompt_value, custom_prompt_text):
+        try:
+            content = ""
+            self.analysePath = input_path  # Maintain compatibility
+
+            # Step 1: Extraction
+            if tab_index in [0, 1]:  # Website or YouTube
+                content = text_extraction_youtube_website(input_path)
+                self.analyseResult = content
+            elif tab_index == 2:  # PDF
+                if is_pdf_upload:
+                    content = input_path  # It's the file path
+                else:
+                    content = input_path
+                self.analyseResult = content
+
+            # Step 2: Prompt Generation
+            prompt = ""
+            if prompt_value == "Zusammenfassung":
+                prompt = "Fasse den Text zusammen:{text}"
+            elif prompt_value == "Keyword-Extraktion":
+                prompt = "Extrahiere Schlüsselwörter aus diesem Text: {text}".format(
+                    text=content)
+            elif prompt_value == "Sentiment Analyse":
+                prompt = "Analysiere die Stimmung und den Tonfall dieses Textes: {text}".format(
+                    text=content)
+            elif prompt_value == "Themen-Erkennung":
+                prompt = "Erkenne die Hauptthemen des nachfolgendes Textes: {text}".format(
+                    text=content)
+            else:
+                prompt = f"{custom_prompt_text} {{text}}".format(text=content)
+
+            # Step 3: AI Analysis
+            result_analysis = ""
+            if "http" in input_path.lower() or "youtu" in input_path.lower():
+                try:
+                    combined_text = prompt.format(text=content)
+                except Exception:
+                    combined_text = prompt
+                result_analysis = real_ai_analyse_fortext(combined_text)
+            else:
+                result_analysis = real_ai_analyse_forpdf(content, prompt)
+
+            # Schedule UI Update
+            self.window.after(0, self.analysis_complete, result_analysis)
+
+        except Exception as e:
+            error_msg = f"Ein Fehler ist aufgetreten:\n{str(e)}"
+            self.window.after(0, self.analysis_complete, error_msg)
+
+    def analysis_complete(self, result_text):
+        self.output_text.config(state=tk.NORMAL)
+        self.output_text.delete(1.0, tk.END)
+        markdown_to_tkinter_text(result_text, self.output_text)
+        self.output_text.config(state=tk.DISABLED)
+
+        self.window.config(cursor="")
+        self.question_button.config(state=tk.NORMAL, text="Frage senden")
+        self.status_var.set("Analyse abgeschlossen")
 
     def save_note(self):
         note = self.output_text.get(1.0, tk.END).strip()
@@ -514,13 +616,20 @@ class Gui():
         else:
             self.status_var.set("Kein Text zum Speichern gefunden")
 
-
     def export_notes_as_pdf(self):
         self.save_note()
-        file_path = filedialog.asksaveasfilename(filetypes=[("PDF-Dateien", "*.pdf")])
+        file_path = filedialog.asksaveasfilename(
+            filetypes=[("PDF-Dateien", "*.pdf")])
 
         if not file_path:
             return
+
+        # Lazy import of reportlab to speed up application startup
+        from reportlab.lib.pagesizes import letter
+        from reportlab.lib.styles import getSampleStyleSheet
+        from reportlab.lib.units import inch
+        from reportlab.platypus import SimpleDocTemplate, Spacer, Paragraph
+
         pdf = SimpleDocTemplate(file_path, pagesize=letter)
         styles = getSampleStyleSheet()
         story = []
