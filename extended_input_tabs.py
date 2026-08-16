@@ -21,16 +21,18 @@ from csv_handler import CSVHandler
 class ExtendedInputTabs:
     """Extended input tabs with support for Excel, images, CSV, and multi-file processing."""
     
-    def __init__(self, parent_notebook: ttk.Notebook, status_callback: Optional[Callable] = None):
+    def __init__(self, parent_notebook: ttk.Notebook, status_callback: Optional[Callable] = None, analysis_callback: Optional[Callable] = None):
         """
         Initialize extended input tabs.
         
         Args:
             parent_notebook: The notebook widget to add tabs to
             status_callback: Optional callback for status updates
+            analysis_callback: Optional callback(content, source_path, analysis_type) for analysis requests
         """
         self.parent_notebook = parent_notebook
         self.status_callback = status_callback or (lambda msg: None)
+        self.analysis_callback = analysis_callback or (lambda content, source, atype: None)
         
         # Initialize file handler router
         try:
@@ -773,6 +775,30 @@ class ExtendedInputTabs:
             return f"Fehler beim Extrahieren des Inhalts: {str(e)}"
         
         return None
+    
+    def trigger_analysis(self):
+        """Trigger analysis for the currently selected extended tab."""
+        if not self.analysis_callback:
+            return
+        
+        current_tab = self.parent_notebook.select()
+        tab_index = self.parent_notebook.index(current_tab)
+        extended_tab_offset = 3
+        
+        if tab_index >= extended_tab_offset:
+            content = self.get_current_content()
+            if content:
+                source_path = "extended_input"
+                if tab_index == extended_tab_offset and self.current_excel_file:
+                    source_path = self.current_excel_file
+                elif tab_index == extended_tab_offset + 1 and self.current_image_file:
+                    source_path = self.current_image_file
+                elif tab_index == extended_tab_offset + 2 and self.current_csv_files:
+                    source_path = ", ".join(self.current_csv_files)
+                elif tab_index == extended_tab_offset + 3 and self.selected_files:
+                    source_path = ", ".join(self.selected_files)
+                
+                self.analysis_callback(content, source_path, "enhanced_analysis")
     
     def get_handler_info(self) -> Dict[str, Any]:
         """Get information about available file handlers."""

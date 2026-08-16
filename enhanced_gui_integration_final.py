@@ -94,7 +94,8 @@ class EnhancedGui(BaseGui):
         # Create enhanced input tabs
         self.enhanced_input_tabs = ExtendedInputTabs(
             self.input_tabs,
-            status_callback=self._on_status_update
+            status_callback=self._on_status_update,
+            analysis_callback=self._on_enhanced_analysis_requested
         )
         
         # Keep reference to the notebook for backward compatibility
@@ -153,14 +154,17 @@ class EnhancedGui(BaseGui):
         
     def _add_enhanced_menu(self):
         """Add enhanced menu items and toolbar."""
-        # Create menu bar if it doesn't exist
-        if not hasattr(self.window, 'menubar'):
-            self.window.menubar = tk.Menu(self.window)
-            self.window.config(menu=self.window.menubar)
+        # Use existing menubar from base GUI
+        if hasattr(self, 'menubar'):
+            menubar = self.menubar
+        else:
+            self.menubar = tk.Menu(self.window)
+            self.window.config(menu=self.menubar)
+            menubar = self.menubar
             
         # Add enhanced features menu
-        self.enhanced_menu = tk.Menu(self.window.menubar, tearoff=0)
-        self.window.menubar.add_cascade(label="Erweiterte Funktionen", menu=self.enhanced_menu)
+        self.enhanced_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Erweiterte Funktionen", menu=self.enhanced_menu)
         
         self.enhanced_menu.add_command(
             label="Ergebnisse verwalten",
@@ -194,29 +198,26 @@ class EnhancedGui(BaseGui):
         
     def _on_enhanced_analysis_requested(self, content: str, source_path: str, analysis_type: str):
         """Handle analysis request from enhanced input tabs."""
-        # Start analysis in background thread
+        custom_prompt = self.question_text.get(1.0, tk.END).strip()
+        prompt_template = self.get_prompt()
+        
         self.processing_thread = threading.Thread(
             target=self._process_enhanced_analysis,
-            args=(content, source_path, analysis_type)
+            args=(content, source_path, analysis_type, custom_prompt, prompt_template)
         )
         self.processing_thread.daemon = True
         self.processing_thread.start()
         
-    def _process_enhanced_analysis(self, content: str, source_path: str, analysis_type: str):
+    def _process_enhanced_analysis(self, content: str, source_path: str, analysis_type: str, custom_prompt: str, prompt_template: str):
         """Process analysis with enhanced features in background thread."""
         try:
-            # Show progress
             self.window.after(0, lambda: self.progress_indicator.start("Analyse wird durchgeführt..."))
             
-            # Get custom prompt if provided
-            custom_prompt = self.question_text.get(1.0, tk.END).strip()
             if custom_prompt:
-                # Use custom prompt
                 combined_prompt = f"{custom_prompt}\n\nInhalt: {content}"
                 ai_result = real_ai_analyse_fortext(combined_prompt)
             else:
-                # Use predefined analysis type
-                prompt = self.get_prompt(content)
+                prompt = prompt_template.replace("{text}", content)
                 ai_result = real_ai_analyse_fortext(prompt)
             
             # Process result through enhanced processor
@@ -357,17 +358,17 @@ class EnhancedGui(BaseGui):
     def send_question(self):
         """Enhanced version of send_question that uses new processing pipeline."""
         try:
-            # Try to get content from enhanced input tabs first
-            if hasattr(self, 'enhanced_input_tabs') and hasattr(self.enhanced_input_tabs, 'get_current_content'):
-                content = self.enhanced_input_tabs.get_current_content()
-                if content:
-                    # Enhanced tabs return just content, we need to determine source and type
-                    source_path = "enhanced_input"
-                    analysis_type = "enhanced_analysis"
-                    self._on_enhanced_analysis_requested(content, source_path, analysis_type)
+            if self.processing_thread and self.processing_thread.is_alive():
+                messagebox.showinfo("Analyse läuft", "Eine Analyse wird bereits durchgeführt. Bitte warte einen Moment.")
+                return
+
+            if hasattr(self, 'enhanced_input_tabs'):
+                tab_id = self.input_tabs.select()
+                tab_index = self.input_tabs.index(tab_id)
+                if tab_index >= 3:
+                    self.enhanced_input_tabs.trigger_analysis()
                     return
-            
-            # Fallback to original method for backward compatibility
+
             super().send_question()
                 
         except Exception as e:

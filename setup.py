@@ -83,7 +83,7 @@ def create_sample_config():
         print("📝 Creating sample configuration file...")
         sample_config = """[API]
 # Replace with your actual OpenAI API key
-openai_api_key = your_openai_api_key_here
+OpenAI_Key = your_openai_api_key_here
 
 [SETTINGS]
 # Default analysis language
