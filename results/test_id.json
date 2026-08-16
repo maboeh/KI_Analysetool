@@ -1,0 +1,54 @@
+{
+  "id": "test_id",
+  "content": "Test analysis result",
+  "source_info": {
+    "type": "text",
+    "url": null,
+    "file_path": "test.txt",
+    "file_name": "test.txt",
+    "file_size": null,
+    "encoding": null
+  },
+  "extracted_data": {
+    "tables": [],
+    "entities": [],
+    "numeric_values": [],
+    "temporal_data": [],
+    "relationships": [],
+    "categories": {}
+  },
+  "visualizations": [],
+  "follow_up_actions": [
+    {
+      "action_type": "zusammenfassen",
+      "label": "Zusammenfassen",
+      "description": "Erstelle eine Zusammenfassung des Ergebnisses",
+      "parameters": {},
+      "enabled": true
+    },
+    {
+      "action_type": "vertiefen",
+      "label": "Vertiefen",
+      "description": "Führe eine tiefergehende Analyse durch",
+      "parameters": {},
+      "enabled": true
+    },
+    {
+      "action_type": "übersetzen",
+      "label": "Übersetzen",
+      "description": "Übersetze das Ergebnis in eine andere Sprache",
+      "parameters": {},
+      "enabled": true
+    }
+  ],
+  "metadata": {
+    "analysis_type": "test",
+    "processing_time": 1.0,
+    "model_used": "test_model",
+    "tokens_used": null,
+    "confidence_score": 0.9,
+    "tags": []
+  },
+  "created_at": "2025-08-29T17:56:36.805144",
+  "updated_at": "2025-08-29T17:56:36.805147"
+}

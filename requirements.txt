@@ -1,0 +1,26 @@
+# Core dependencies (existing)
+openai>=1.0.0
+youtube-transcript-api>=0.6.0
+beautifulsoup4>=4.12.0
+requests>=2.31.0
+reportlab>=4.0.0
+
+# Data processing dependencies (new)
+pandas>=2.0.0
+openpyxl>=3.1.0
+
+# Image processing and OCR dependencies (new)
+pytesseract>=0.3.10
+Pillow>=10.0.0
+
+# Visualization dependencies (new)
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Additional data processing utilities (new)
+python-dateutil>=2.8.0
+regex>=2023.6.3
+
+# Development and testing (optional)
+pytest>=7.0.0
+pytest-cov>=4.0.0
