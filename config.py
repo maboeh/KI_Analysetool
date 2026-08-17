@@ -1,62 +1,77 @@
 import configparser
 import os
+import sys
+import logging
+
+logger = logging.getLogger(__name__)
 
 CURRENT_API_KEY = None
 
+try:
+    import keyring
+    KEYRING_AVAILABLE = True
+    KEYRING_SERVICE = "KI_Analysetool"
+    KEYRING_USERNAME = "openai_api_key"
+except ImportError:
+    KEYRING_AVAILABLE = False
+
 def get_config_path():
-    """Gibt den absoluten Pfad zur Konfigurationsdatei zurück."""
-    return os.path.abspath('config.ini')
+    """Gibt den absoluten Pfad zur Konfigurationsdatei zurück (relativ zu dieser Datei)."""
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.ini')
 
 def check_api_key_exists():
-
+    """Prüft, ob ein API-Key im Keyring, in der Umgebungsvariable oder Konfigurationsdatei existiert."""
     global CURRENT_API_KEY
-    """Prüft, ob ein API-Key in der Konfigurationsdatei oder als Umgebungsvariable existiert."""
-    # Prüfen auf Umgebungsvariable
+
+    if KEYRING_AVAILABLE:
+        key = keyring.get_password(KEYRING_SERVICE, KEYRING_USERNAME)
+        if key:
+            CURRENT_API_KEY = key
+            return True
+
     if 'OPENAI_API_KEY' in os.environ and os.environ['OPENAI_API_KEY']:
         CURRENT_API_KEY = os.environ['OPENAI_API_KEY']
         return True
 
-    # Prüfen auf Konfigurationsdatei
     config_path = get_config_path()
     if os.path.exists(config_path):
         config = configparser.ConfigParser()
         config.read(config_path)
         if 'API' in config and 'OpenAI_Key' in config['API'] and config['API']['OpenAI_Key']:
             CURRENT_API_KEY = config['API']['OpenAI_Key']
-            os.environ['OPENAI_API_KEY'] = CURRENT_API_KEY
             return True
 
     return False
 
 def save_api_key(key):
-    """Speichert den API-Key in der Konfigurationsdatei."""
+    """Speichert den API-Key sicher im OS-Keyring mit Fallback auf config.ini."""
     global CURRENT_API_KEY
 
     CURRENT_API_KEY = key
-    os.environ['OPENAI_API_KEY'] = key
+
+    if KEYRING_AVAILABLE:
+        try:
+            keyring.set_password(KEYRING_SERVICE, KEYRING_USERNAME, key)
+            _migrate_key_from_config_ini()
+            return
+        except Exception as e:
+            logger.warning(f"Keyring-Speicherung fehlgeschlagen, falle auf config.ini zurück: {e}")
 
     config = configparser.ConfigParser()
-
-    # Absoluten Pfad zur Konfigurationsdatei verwenden
     config_path = get_config_path()
 
-    # Existierende Konfiguration laden, falls vorhanden
     if os.path.exists(config_path):
         config.read(config_path)
 
-    # API-Sektion erstellen, falls nicht vorhanden
     if 'API' not in config:
         config['API'] = {}
 
-    # API-Key setzen
     config['API']['OpenAI_Key'] = key
 
-    # In Datei schreiben
-    with open('config.ini', 'w') as configfile:
+    with open(config_path, 'w') as configfile:
         config.write(configfile)
         configfile.flush()
         os.fsync(configfile.fileno())
-    # Berechtigungen setzen (nur Benutzer darf lesen/schreiben)
     os.chmod(config_path, 0o600)
 
 def get_api_key():
@@ -71,7 +86,10 @@ def get_api_key():
     if check_api_key_exists():
         return CURRENT_API_KEY
 
-    # Interaktive Abfrage als letzter Ausweg
+    # Interaktive Abfrage nur im CLI-Modus
+    if not sys.stdin.isatty():
+        return None
+
     print("Kein API-Schlüssel gefunden.")
     choice = input("Möchtest du einen API-Schlüssel eingeben? (j/n): ")
 
@@ -83,13 +101,25 @@ def get_api_key():
         if save.lower() in ["j", "ja", "y", "yes"]:
             save_api_key(api_key)
         else:
-            # Nur für diese Sitzung speichern
             CURRENT_API_KEY = api_key
-            os.environ['OPENAI_API_KEY'] = api_key
 
         return api_key
 
     return None
 
 
+def _migrate_key_from_config_ini():
+    """Entfernt den API-Key aus config.ini, wenn er erfolgreich im Keyring gespeichert wurde."""
+    config_path = get_config_path()
+    if not os.path.exists(config_path):
+        return
 
+    config = configparser.ConfigParser()
+    config.read(config_path)
+
+    if 'API' in config and 'OpenAI_Key' in config['API']:
+        del config['API']['OpenAI_Key']
+        if not config['API']:
+            del config['API']
+        with open(config_path, 'w') as configfile:
+            config.write(configfile)

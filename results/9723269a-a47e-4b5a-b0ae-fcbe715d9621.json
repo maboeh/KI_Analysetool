@@ -1,0 +1,131 @@
+{
+  "id": "9723269a-a47e-4b5a-b0ae-fcbe715d9621",
+  "content": "Excel-Daten:\nTabelle: Standard-Arbeitsblatt\nZeilen: 3, Spalten: 3\n\nSpalten: Month | Revenue | Costs\n--------------------------------------------------\nJan | 1000 | 800\nFeb | 1200 | 900\nMar | 1100 | 850",
+  "source_info": {
+    "type": "excel",
+    "url": null,
+    "file_path": "/var/folders/gs/r8x4k5zx3q5bdgjs_y5j64kh0000gn/T/tmpg5819dm4/monthly_data.xlsx",
+    "file_name": "monthly_data.xlsx",
+    "file_size": 5011,
+    "encoding": null
+  },
+  "extracted_data": {
+    "tables": [],
+    "entities": [
+      {
+        "text": "Arbeitsblatt\nZeilen",
+        "entity_type": "person",
+        "confidence": 0.8,
+        "start_pos": 31,
+        "end_pos": 50
+      }
+    ],
+    "numeric_values": [
+      {
+        "value": 3.0,
+        "unit": null,
+        "context": "cel-Daten:\nTabelle: Standard-Arbeitsblatt\nZeilen: 3, Spalten: 3\n\nSpalten: Month | Revenue | Costs\n---",
+        "value_type": "number"
+      },
+      {
+        "value": 3.0,
+        "unit": null,
+        "context": "abelle: Standard-Arbeitsblatt\nZeilen: 3, Spalten: 3\n\nSpalten: Month | Revenue | Costs\n---------------",
+        "value_type": "number"
+      },
+      {
+        "value": 800.0,
+        "unit": null,
+        "context": "------------------------------------\nJan | 1000 | 800\nFeb | 1200 | 900\nMar | 1100 | 850",
+        "value_type": "number"
+      },
+      {
+        "value": 900.0,
+        "unit": null,
+        "context": "-------------------\nJan | 1000 | 800\nFeb | 1200 | 900\nMar | 1100 | 850",
+        "value_type": "number"
+      },
+      {
+        "value": 850.0,
+        "unit": null,
+        "context": "--\nJan | 1000 | 800\nFeb | 1200 | 900\nMar | 1100 | 850",
+        "value_type": "number"
+      }
+    ],
+    "temporal_data": [],
+    "relationships": [],
+    "categories": {
+      "person": [
+        "Arbeitsblatt\nZeilen"
+      ],
+      "number": [
+        "3.0 ",
+        "3.0 ",
+        "800.0 ",
+        "900.0 ",
+        "850.0 "
+      ]
+    }
+  },
+  "visualizations": [],
+  "follow_up_actions": [
+    {
+      "action_type": "zusammenfassen",
+      "label": "Zusammenfassen",
+      "description": "Erstelle eine Zusammenfassung des Ergebnisses",
+      "parameters": {},
+      "enabled": true
+    },
+    {
+      "action_type": "vertiefen",
+      "label": "Vertiefen",
+      "description": "Führe eine tiefergehende Analyse durch",
+      "parameters": {},
+      "enabled": true
+    },
+    {
+      "action_type": "übersetzen",
+      "label": "Übersetzen",
+      "description": "Übersetze das Ergebnis in eine andere Sprache",
+      "parameters": {},
+      "enabled": true
+    },
+    {
+      "action_type": "visualisieren",
+      "label": "Visualisieren",
+      "description": "Erstelle Diagramme aus den extrahierten Daten",
+      "parameters": {},
+      "enabled": true
+    },
+    {
+      "action_type": "analysieren",
+      "label": "Entitäten analysieren",
+      "description": "Analysiere die gefundenen Personen, Orte und Organisationen",
+      "parameters": {
+        "focus": "Entitätenanalyse"
+      },
+      "enabled": true
+    },
+    {
+      "action_type": "analysieren",
+      "label": "Zahlen analysieren",
+      "description": "Analysiere die numerischen Daten und Trends",
+      "parameters": {
+        "focus": "numerische Analyse"
+      },
+      "enabled": true
+    }
+  ],
+  "metadata": {
+    "analysis_type": "monthly_analysis",
+    "processing_time": 0.0005369186401367188,
+    "model_used": "gpt-4o",
+    "tokens_used": null,
+    "confidence_score": 0.6333333333333333,
+    "tags": [
+      "viz_suggestion_histogram"
+    ]
+  },
+  "created_at": "2025-08-29T17:56:11.451570",
+  "updated_at": "2025-08-29T17:56:11.451573"
+}
