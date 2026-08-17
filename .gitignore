@@ -2,3 +2,13 @@
 /.idea/
 config.ini
 .idea/
+__pycache__/
+*.pyc
+.pytest_cache/
+.kiro/
+.vscode/
+results.db
+results/
+exports/
+analysis_history/
+profile.txt

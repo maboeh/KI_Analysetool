@@ -9,6 +9,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Spacer,Paragraph
 from markdown_formatter import configure_markdown_tags, markdown_to_tkinter_text
+from help_tooltip import add_help_indicator
 
 
 from analysis import (extract_transkript, extract_text_from_website,
@@ -21,8 +22,8 @@ class Gui():
     def __init__(self,window):
         self.window = window
         self.window.title("KI Analysetool")
-        self.window.geometry("800x1000")
-        self.window.minsize(700, 900)
+        self.window.geometry("1800x1000")
+        self.window.minsize(1500, 850)
 
 
         if not check_api_key_exists():
@@ -76,24 +77,24 @@ class Gui():
         self.main_frame = ttk.Frame(self.window, padding=15)
         self.main_frame.pack(fill="both", expand=True)
 
-        # Header
-        self.header_label = ttk.Label(self.main_frame, text="KI-Analysetool", style="Header.TLabel")
-        self.header_label.pack(pady=(0, 15))
+        # Horizontal container for sources (left) and analysis (right)
+        self.content_frame = ttk.Frame(self.main_frame)
+        self.content_frame.pack(fill=tk.BOTH, expand=True)
 
-        # Status bar
+        self.setupSourcesFrame()
+        self.analysis_Frame()
+
+        # Status bar (bottom, full width)
         self.status_var = tk.StringVar()
         self.status_var.set("Bereit")
         self.status_bar = ttk.Label(self.main_frame, textvariable=self.status_var, relief=tk.SUNKEN, anchor=tk.W)
         self.status_bar.pack(fill=tk.X, pady=(15, 0))
 
-        self.setupSourcesFrame()
-        self.analysis_Frame()
-
 
     def setupSourcesFrame(self):
-        # Input-Source Frame
-        self.sources_frame = ttk.LabelFrame(self.main_frame, text="Inhaltsquellen", padding=15)
-        self.sources_frame.pack(fill=tk.X, pady=(0, 15))
+        # Input-Source Frame (left side)
+        self.sources_frame = ttk.LabelFrame(self.content_frame, text="Inhaltsquellen", padding=15)
+        self.sources_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 10))
         self.sources_frame.columnconfigure(0, weight=1)
 
         # Tabs for different input types
@@ -108,7 +109,12 @@ class Gui():
         website_tab = ttk.Frame(self.input_tabs, padding=10)
         self.input_tabs.add(website_tab, text="Webseite")
 
-        ttk.Label(website_tab, text="Webseiten-URL:").pack(anchor=tk.W, pady=(0, 5))
+        url_label_frame = ttk.Frame(website_tab)
+        url_label_frame.pack(anchor=tk.W, pady=(0, 5))
+        ttk.Label(url_label_frame, text="Webseiten-URL:").pack(side=tk.LEFT)
+        add_help_indicator(url_label_frame,
+                          "Geben Sie hier die URL der Webseite ein, die analysiert werden soll. "
+                          "Der Text der Seite wird automatisch extrahiert.")
 
         website_frame = ttk.Frame(website_tab)
         website_frame.pack(fill=tk.X)
@@ -121,7 +127,12 @@ class Gui():
         youtube_tab = ttk.Frame(self.input_tabs, padding=10)
         self.input_tabs.add(youtube_tab, text="YouTube")
 
-        ttk.Label(youtube_tab, text="YouTube-Link:").pack(anchor=tk.W, pady=(0, 5))
+        yt_label_frame = ttk.Frame(youtube_tab)
+        yt_label_frame.pack(anchor=tk.W, pady=(0, 5))
+        ttk.Label(yt_label_frame, text="YouTube-Link:").pack(side=tk.LEFT)
+        add_help_indicator(yt_label_frame,
+                          "Fügen Sie hier den YouTube-Video-Link ein. "
+                          "Das Transkript des Videos wird automatisch extrahiert und analysiert.")
 
         youtube_frame = ttk.Frame(youtube_tab)
         youtube_frame.pack(fill=tk.X)
@@ -134,7 +145,12 @@ class Gui():
         pdf_tab = ttk.Frame(self.input_tabs, padding=10)
         self.input_tabs.add(pdf_tab, text="PDF")
 
-        ttk.Label(pdf_tab, text="PDF-URL:").pack(anchor=tk.W, pady=(0, 5))
+        pdf_label_frame = ttk.Frame(pdf_tab)
+        pdf_label_frame.pack(anchor=tk.W, pady=(0, 5))
+        ttk.Label(pdf_label_frame, text="PDF-URL:").pack(side=tk.LEFT)
+        add_help_indicator(pdf_label_frame,
+                          "Geben Sie hier eine URL zu einer PDF-Datei ein oder laden Sie "
+                          "alternativ eine lokale PDF-Datei über den Button hoch.")
 
         pdf_url_frame = ttk.Frame(pdf_tab)
         pdf_url_frame.pack(fill=tk.X, pady=(0, 10))
@@ -145,8 +161,13 @@ class Gui():
 
         ttk.Label(pdf_tab, text="oder").pack(pady=5)
 
-        pdf_upload_button = ttk.Button(pdf_tab, text="PDF hochladen", command=self.pdf_file_choose)
-        pdf_upload_button.pack(pady=5)
+        pdf_upload_frame = ttk.Frame(pdf_tab)
+        pdf_upload_frame.pack(pady=5)
+        pdf_upload_button = ttk.Button(pdf_upload_frame, text="PDF hochladen", command=self.pdf_file_choose)
+        pdf_upload_button.pack(side=tk.LEFT)
+        add_help_indicator(pdf_upload_frame,
+                          "Öffnet einen Datei-Dialog zum Auswählen einer lokalen PDF-Datei. "
+                          "Der Text wird extrahiert und für die Analyse vorbereitet.")
 
         self.pdf_path_var = tk.StringVar()
         self.pdf_path_label = ttk.Label(pdf_tab, textvariable=self.pdf_path_var, wraplength=350)
@@ -154,29 +175,46 @@ class Gui():
 
     # ----------------------------------------------------------------------------------------------------------------------------
     def analysis_Frame(self):
-        # Analysis and results frame
-        self.analysis_frame = ttk.LabelFrame(self.main_frame, text="Analyse & Ergebnisse", padding=10)
-        self.analysis_frame.pack(fill=tk.BOTH, expand=True)
-        self.analysis_frame.rowconfigure(5, weight=1)
+        # Analysis and results frame (right side)
+        self.analysis_frame = ttk.LabelFrame(self.content_frame, text="Analyse & Ergebnisse", padding=10)
+        self.analysis_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+        self.analysis_frame.rowconfigure(5, weight=0)
+        self.analysis_frame.rowconfigure(6, weight=1)
         self.analysis_frame.columnconfigure(0, weight=1)
 
         self.promptFrame()
         self.outPutArea()
     def promptFrame(self):
         # Question input
-        ttk.Label(self.analysis_frame, text="Erstelle einen Prompt zu dem Inhalt:").grid(row=0, column=0, sticky=tk.W)
+        prompt_label_frame = ttk.Frame(self.analysis_frame)
+        prompt_label_frame.grid(row=0, column=0, sticky=tk.W)
+        ttk.Label(prompt_label_frame, text="Erstelle einen Prompt zu dem Inhalt:").pack(side=tk.LEFT)
+        add_help_indicator(prompt_label_frame,
+                          "Hier können Sie einen eigenen Prompt eingeben. Verwenden Sie {text} als Platzhalter "
+                          "für den extrahierten Inhalt. Alternativ können Sie eine vordefinierte Analyse aus dem Dropdown wählen.")
 
         self.question_text = scrolledtext.ScrolledText(self.analysis_frame, height=4)
         self.question_text.grid(row=1, column=0, sticky=tk.W + tk.E, pady=(0, 15))
 
-        self.combobox = ttk.Combobox(self.analysis_frame,
+        combo_frame = ttk.Frame(self.analysis_frame)
+        combo_frame.grid(row=2, column=0, sticky=tk.W + tk.E, pady=(0, 15))
+        
+        self.combobox = ttk.Combobox(combo_frame,
                                 values=["Prompt senden", "Zusammenfassung", "Keyword-Extraktion", "Sentiment Analyse",
                                         "Themen-Erkennung"])
         self.combobox.current(0)
-        self.combobox.grid(row=2, column=0, sticky=tk.W + tk.E, pady=(0, 15))
+        self.combobox.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        add_help_indicator(combo_frame,
+                          "Wählen Sie eine vordefinierte Analysemethode: "
+                          "Zusammenfassung, Keyword-Extraktion, Sentiment-Analyse oder Themen-Erkennung. "
+                          "Bei 'Prompt senden' wird Ihr eigener Prompt verwendet.")
 
-        question_button = ttk.Button(self.analysis_frame, text="Frage senden", command=self.send_question)
-        question_button.grid(row=3, column=0, sticky=tk.W + tk.E, pady=(0, 15))
+        question_btn_frame = ttk.Frame(self.analysis_frame)
+        question_btn_frame.grid(row=3, column=0, sticky=tk.W + tk.E, pady=(0, 15))
+        question_button = ttk.Button(question_btn_frame, text="Frage senden", command=self.send_question)
+        question_button.pack(side=tk.LEFT)
+        add_help_indicator(question_btn_frame,
+                          "Sendet den Prompt zusammen mit dem extrahierten Inhalt an die KI und zeigt das Ergebnis an.")
 
         # Separator
         separator = ttk.Separator(self.analysis_frame, orient=tk.HORIZONTAL)
@@ -193,14 +231,22 @@ class Gui():
         configure_markdown_tags(self.output_text)
 
         # Note management buttons
-        buttons_frame = ttk.Frame(self.analysis_frame)
-        buttons_frame.grid(row=7, column=0, sticky=tk.W + tk.E, pady=(0, 10))
+        self.note_buttons_frame = ttk.Frame(self.analysis_frame)
+        self.note_buttons_frame.grid(row=7, column=0, sticky=tk.W + tk.E, pady=(0, 10))
 
-        export_button = ttk.Button(buttons_frame, text="Notiz exportieren", command=self.export_notes_as_pdf)
-        export_button.grid(row=0, column=0)
+        export_frame = ttk.Frame(self.note_buttons_frame)
+        export_frame.grid(row=0, column=0)
+        export_button = ttk.Button(export_frame, text="Notiz exportieren", command=self.export_notes_as_pdf)
+        export_button.pack(side=tk.LEFT)
+        add_help_indicator(export_frame,
+                          "Exportiert die aktuelle Notiz als PDF-Datei.")
 
-        clipboard_button = ttk.Button(buttons_frame, text="In Zwischenablage", command=self.copy_notes_as_text)
-        clipboard_button.grid(row=0, column=2)
+        clipboard_frame = ttk.Frame(self.note_buttons_frame)
+        clipboard_frame.grid(row=0, column=2)
+        clipboard_button = ttk.Button(clipboard_frame, text="In Zwischenablage", command=self.copy_notes_as_text)
+        clipboard_button.pack(side=tk.LEFT)
+        add_help_indicator(clipboard_frame,
+                          "Kopiert die aktuelle Notiz in die Zwischenablage des Systems.")
 
     # Funktionen
 

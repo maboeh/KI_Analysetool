@@ -1,0 +1,456 @@
+"""
+Results Manager for storing and retrieving processed analysis results.
+
+This module provides the ResultsManager class which handles persistent storage
+of ProcessedResult objects using SQLite for metadata and JSON for content.
+"""
+
+import sqlite3
+import json
+import os
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Any
+from pathlib import Path
+
+from data_models import ProcessedResult, ResultSummary, SourceInfo, ResultMetadata
+
+
+class ResultsManager:
+    """Manages storage and retrieval of processed analysis results."""
+    
+    def __init__(self, db_path: str = "results.db", results_dir: str = "results"):
+        """
+        Initialize the ResultsManager.
+        
+        Args:
+            db_path: Path to SQLite database file
+            results_dir: Directory to store result JSON files
+        """
+        self.db_path = db_path
+        self.results_dir = Path(results_dir)
+        self.results_dir.mkdir(exist_ok=True)
+        self._init_database()
+    
+    def _init_database(self):
+        """Initialize the SQLite database with required tables."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS results (
+                    id TEXT PRIMARY KEY,
+                    title TEXT NOT NULL,
+                    analysis_type TEXT NOT NULL,
+                    source_type TEXT,
+                    source_url TEXT,
+                    source_file_path TEXT,
+                    source_file_name TEXT,
+                    content_preview TEXT,
+                    has_visualizations BOOLEAN DEFAULT FALSE,
+                    has_exportable_data BOOLEAN DEFAULT FALSE,
+                    processing_time REAL,
+                    model_used TEXT,
+                    tokens_used INTEGER,
+                    confidence_score REAL,
+                    tags TEXT,  -- JSON array of tags
+                    created_at TIMESTAMP NOT NULL,
+                    updated_at TIMESTAMP NOT NULL,
+                    json_file_path TEXT NOT NULL
+                )
+            """)
+            
+            # Create indexes for better query performance
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_created_at ON results(created_at)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_analysis_type ON results(analysis_type)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_source_type ON results(source_type)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_tags ON results(tags)")
+            
+            conn.commit()
+    
+    def save_result(self, result: ProcessedResult, name: Optional[str] = None) -> str:
+        """
+        Save a ProcessedResult to persistent storage.
+        
+        Args:
+            result: The ProcessedResult to save
+            name: Optional custom name for the result
+            
+        Returns:
+            The ID of the saved result
+        """
+        # Generate title if not provided
+        if name is None:
+            name = self._generate_title(result)
+        
+        # Save JSON content to file
+        json_file_path = self.results_dir / f"{result.id}.json"
+        with open(json_file_path, 'w', encoding='utf-8') as f:
+            json.dump(result.to_dict(), f, ensure_ascii=False, indent=2)
+        
+        # Save metadata to database
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("""
+                INSERT OR REPLACE INTO results (
+                    id, title, analysis_type, source_type, source_url, 
+                    source_file_path, source_file_name, content_preview,
+                    has_visualizations, has_exportable_data, processing_time,
+                    model_used, tokens_used, confidence_score, tags,
+                    created_at, updated_at, json_file_path
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                result.id,
+                name,
+                result.metadata.analysis_type,
+                result.source_info.type if result.source_info else None,
+                result.source_info.url if result.source_info else None,
+                result.source_info.file_path if result.source_info else None,
+                result.source_info.file_name if result.source_info else None,
+                result.content[:500] + "..." if len(result.content) > 500 else result.content,
+                len(result.visualizations) > 0,
+                result.has_exportable_data(),
+                result.metadata.processing_time,
+                result.metadata.model_used,
+                result.metadata.tokens_used,
+                result.metadata.confidence_score,
+                json.dumps(result.metadata.tags),
+                result.created_at.isoformat(),
+                result.updated_at.isoformat(),
+                str(json_file_path)
+            ))
+            conn.commit()
+        
+        return result.id
+    
+    def load_result(self, result_id: str) -> Optional[ProcessedResult]:
+        """
+        Load a ProcessedResult by ID.
+        
+        Args:
+            result_id: The ID of the result to load
+            
+        Returns:
+            The ProcessedResult if found, None otherwise
+        """
+        # Get JSON file path from database
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute(
+                "SELECT json_file_path FROM results WHERE id = ?",
+                (result_id,)
+            )
+            row = cursor.fetchone()
+            
+            if not row:
+                return None
+            
+            json_file_path = row[0]
+        
+        # Load JSON content
+        try:
+            with open(json_file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            return ProcessedResult.from_dict(data)
+        except (FileNotFoundError, json.JSONDecodeError):
+            return None
+    
+    def list_results(self, filter_criteria: Optional[Dict[str, Any]] = None) -> List[ResultSummary]:
+        """
+        List all results with optional filtering.
+        
+        Args:
+            filter_criteria: Optional dictionary with filter criteria:
+                - analysis_type: Filter by analysis type
+                - source_type: Filter by source type
+                - date_from: Filter results from this date (datetime)
+                - date_to: Filter results to this date (datetime)
+                - has_visualizations: Filter by visualization presence (bool)
+                - has_exportable_data: Filter by exportable data presence (bool)
+                - tags: Filter by tags (list of strings)
+                - search_text: Search in title and content preview
+        
+        Returns:
+            List of ResultSummary objects
+        """
+        query = """
+            SELECT id, title, analysis_type, source_type, created_at,
+                   has_visualizations, has_exportable_data
+            FROM results
+        """
+        params = []
+        conditions = []
+        
+        if filter_criteria:
+            if 'analysis_type' in filter_criteria:
+                conditions.append("analysis_type = ?")
+                params.append(filter_criteria['analysis_type'])
+            
+            if 'source_type' in filter_criteria:
+                conditions.append("source_type = ?")
+                params.append(filter_criteria['source_type'])
+            
+            if 'date_from' in filter_criteria:
+                conditions.append("created_at >= ?")
+                params.append(filter_criteria['date_from'].isoformat())
+            
+            if 'date_to' in filter_criteria:
+                conditions.append("created_at <= ?")
+                params.append(filter_criteria['date_to'].isoformat())
+            
+            if 'has_visualizations' in filter_criteria:
+                conditions.append("has_visualizations = ?")
+                params.append(filter_criteria['has_visualizations'])
+            
+            if 'has_exportable_data' in filter_criteria:
+                conditions.append("has_exportable_data = ?")
+                params.append(filter_criteria['has_exportable_data'])
+            
+            if 'search_text' in filter_criteria:
+                conditions.append("(title LIKE ? OR content_preview LIKE ?)")
+                search_term = f"%{filter_criteria['search_text']}%"
+                params.extend([search_term, search_term])
+            
+            if 'tags' in filter_criteria and filter_criteria['tags']:
+                # Search for any of the provided tags
+                tag_conditions = []
+                for tag in filter_criteria['tags']:
+                    tag_conditions.append("tags LIKE ?")
+                    params.append(f'%"{tag}"%')
+                conditions.append(f"({' OR '.join(tag_conditions)})")
+        
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+        
+        query += " ORDER BY created_at DESC"
+        
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute(query, params)
+            results = []
+            
+            for row in cursor.fetchall():
+                results.append(ResultSummary(
+                    id=row[0],
+                    title=row[1],
+                    analysis_type=row[2],
+                    source_type=row[3] or "unknown",
+                    created_at=datetime.fromisoformat(row[4]),
+                    has_visualizations=bool(row[5]),
+                    has_exportable_data=bool(row[6])
+                ))
+            
+            return results
+    
+    def delete_result(self, result_id: str) -> bool:
+        """
+        Delete a result by ID.
+        
+        Args:
+            result_id: The ID of the result to delete
+            
+        Returns:
+            True if deleted successfully, False otherwise
+        """
+        # Get JSON file path before deletion
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute(
+                "SELECT json_file_path FROM results WHERE id = ?",
+                (result_id,)
+            )
+            row = cursor.fetchone()
+            
+            if not row:
+                return False
+            
+            json_file_path = row[0]
+            
+            # Delete from database
+            cursor = conn.execute("DELETE FROM results WHERE id = ?", (result_id,))
+            deleted_rows = cursor.rowcount
+            conn.commit()
+            
+            # Delete JSON file
+            try:
+                os.remove(json_file_path)
+            except FileNotFoundError:
+                pass  # File already deleted or doesn't exist
+            
+            return deleted_rows > 0
+    
+    def export_result(self, result_id: str, format: str = "json") -> Optional[str]:
+        """
+        Export a result in the specified format.
+        
+        Args:
+            result_id: The ID of the result to export
+            format: Export format ("json", "txt", "csv")
+            
+        Returns:
+            Path to exported file if successful, None otherwise
+        """
+        result = self.load_result(result_id)
+        if not result:
+            return None
+        
+        export_dir = self.results_dir / "exports"
+        export_dir.mkdir(exist_ok=True)
+        
+        if format == "json":
+            export_path = export_dir / f"{result_id}.json"
+            with open(export_path, 'w', encoding='utf-8') as f:
+                json.dump(result.to_dict(), f, ensure_ascii=False, indent=2)
+        
+        elif format == "txt":
+            export_path = export_dir / f"{result_id}.txt"
+            with open(export_path, 'w', encoding='utf-8') as f:
+                f.write(f"Analyse-Ergebnis: {result.id}\n")
+                f.write(f"Erstellt: {result.created_at}\n")
+                f.write(f"Typ: {result.metadata.analysis_type}\n")
+                if result.source_info:
+                    f.write(f"Quelle: {result.source_info.type}\n")
+                f.write("\n" + "="*50 + "\n\n")
+                f.write(result.content)
+        
+        elif format == "csv":
+            if result.extracted_data.tables:
+                export_path = export_dir / f"{result_id}.csv"
+                with open(export_path, 'w', encoding='utf-8') as f:
+                    # Export first table as CSV
+                    f.write(result.extracted_data.tables[0].to_csv_format())
+            else:
+                return None  # No tabular data to export
+        
+        else:
+            return None  # Unsupported format
+        
+        return str(export_path)
+    
+    def get_statistics(self) -> Dict[str, Any]:
+        """
+        Get statistics about stored results.
+        
+        Returns:
+            Dictionary with various statistics
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            # Total count
+            cursor = conn.execute("SELECT COUNT(*) FROM results")
+            total_count = cursor.fetchone()[0]
+            
+            # Count by analysis type
+            cursor = conn.execute("""
+                SELECT analysis_type, COUNT(*) 
+                FROM results 
+                GROUP BY analysis_type
+            """)
+            by_analysis_type = dict(cursor.fetchall())
+            
+            # Count by source type
+            cursor = conn.execute("""
+                SELECT source_type, COUNT(*) 
+                FROM results 
+                GROUP BY source_type
+            """)
+            by_source_type = dict(cursor.fetchall())
+            
+            # Count with visualizations
+            cursor = conn.execute("""
+                SELECT COUNT(*) FROM results WHERE has_visualizations = 1
+            """)
+            with_visualizations = cursor.fetchone()[0]
+            
+            # Count with exportable data
+            cursor = conn.execute("""
+                SELECT COUNT(*) FROM results WHERE has_exportable_data = 1
+            """)
+            with_exportable_data = cursor.fetchone()[0]
+            
+            # Recent activity (last 7 days)
+            week_ago = (datetime.now() - timedelta(days=7)).isoformat()
+            cursor = conn.execute("""
+                SELECT COUNT(*) FROM results WHERE created_at >= ?
+            """, (week_ago,))
+            recent_count = cursor.fetchone()[0]
+            
+            return {
+                'total_results': total_count,
+                'by_analysis_type': by_analysis_type,
+                'by_source_type': by_source_type,
+                'with_visualizations': with_visualizations,
+                'with_exportable_data': with_exportable_data,
+                'recent_activity': recent_count
+            }
+    
+    def _generate_title(self, result: ProcessedResult) -> str:
+        """
+        Generate a title for a result based on its content and metadata.
+        
+        Args:
+            result: The ProcessedResult to generate a title for
+            
+        Returns:
+            Generated title string
+        """
+        # Try to extract a meaningful title from content
+        lines = result.content.split('\n')
+        first_line = lines[0].strip() if lines else ""
+        
+        # If first line looks like a title (short and not ending with punctuation)
+        if first_line and len(first_line) < 100 and not first_line.endswith('.'):
+            title = first_line
+        else:
+            # Use analysis type and source info
+            title = f"{result.metadata.analysis_type.title()}"
+            if result.source_info:
+                if result.source_info.file_name:
+                    title += f" - {result.source_info.file_name}"
+                elif result.source_info.url:
+                    title += f" - {result.source_info.url[:50]}..."
+        
+        # Add timestamp if title is too generic
+        if len(title) < 10:
+            title += f" - {result.created_at.strftime('%Y-%m-%d %H:%M')}"
+        
+        return title[:200]  # Limit title length
+    
+    def update_result(self, result: ProcessedResult) -> bool:
+        """
+        Update an existing result.
+        
+        Args:
+            result: The updated ProcessedResult
+            
+        Returns:
+            True if updated successfully, False otherwise
+        """
+        # Update timestamp
+        result.update_timestamp()
+        
+        # Save updated JSON content
+        json_file_path = self.results_dir / f"{result.id}.json"
+        with open(json_file_path, 'w', encoding='utf-8') as f:
+            json.dump(result.to_dict(), f, ensure_ascii=False, indent=2)
+        
+        # Update database metadata
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute("""
+                UPDATE results SET
+                    analysis_type = ?,
+                    has_visualizations = ?,
+                    has_exportable_data = ?,
+                    processing_time = ?,
+                    model_used = ?,
+                    tokens_used = ?,
+                    confidence_score = ?,
+                    tags = ?,
+                    updated_at = ?
+                WHERE id = ?
+            """, (
+                result.metadata.analysis_type,
+                len(result.visualizations) > 0,
+                result.has_exportable_data(),
+                result.metadata.processing_time,
+                result.metadata.model_used,
+                result.metadata.tokens_used,
+                result.metadata.confidence_score,
+                json.dumps(result.metadata.tags),
+                result.updated_at.isoformat(),
+                result.id
+            ))
+            
+            return cursor.rowcount > 0
