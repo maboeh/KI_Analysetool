@@ -8,6 +8,7 @@ from datetime import datetime
 import tempfile
 import os
 
+from analysis import AnalysisError, AnalysisErrorCode, AnalysisFailure, AnalysisOutcome
 from results_processor import (
     ResultsProcessor, create_results_processor, enhanced_analyze_text,
     enhanced_analyze_pdf, enhanced_analyze_content
@@ -40,6 +41,8 @@ class TestResultsProcessor(unittest.TestCase):
         self.mock_analysis.is_pdf_file.return_value = False
         
         self.mock_follow_up_analysis.real_ai_analyse_fortext.return_value = "Follow-up analysis result"
+        self.mock_follow_up_analysis.analyze_text.return_value = AnalysisOutcome(content="Follow-up analysis result")
+        self.mock_follow_up_analysis.AnalysisFailure = AnalysisFailure
     
     def tearDown(self):
         """Clean up after tests."""
@@ -77,6 +80,23 @@ class TestResultsProcessor(unittest.TestCase):
         self.assertEqual(len(self.processor.history), 1)
         self.assertEqual(self.processor.current_result, result)
     
+    def test_process_analysis_outcome_rejects_failure(self):
+        outcome = AnalysisOutcome(error=AnalysisError(
+            AnalysisErrorCode.CONNECTION_FAILED,
+            "Nicht erreichbar",
+            retryable=True
+        ))
+        with self.assertRaises(AnalysisFailure):
+            self.processor.process_analysis_outcome(outcome, "test.txt", "test_analysis")
+        self.assertEqual(self.processor.history, [])
+        self.assertIsNone(self.processor.current_result)
+
+    def test_process_analysis_outcome_accepts_success(self):
+        outcome = AnalysisOutcome(content="Erfolgreiches Ergebnis", prompt_tokens=12, completion_tokens=8)
+        result = self.processor.process_analysis_outcome(outcome, "test.txt", "test_analysis")
+        self.assertEqual(result.content, "Erfolgreiches Ergebnis")
+        self.assertEqual(result.metadata.tokens_used, 20)
+
     def test_process_analysis_result_with_data_extraction(self):
         """Test processing with data extraction."""
         raw_result = "Analysis shows 25% improvement, €1,000 budget, and John Doe as project manager."

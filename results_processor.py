@@ -15,6 +15,7 @@ from data_models import (
 from data_extractor import DataExtractor, ExtractionConfig
 from chart_generator import ChartGenerator
 from follow_up_actions import FollowUpActionSystem
+from analysis import AnalysisFailure, AnalysisOutcome
 import analysis
 
 
@@ -38,7 +39,8 @@ class ResultsProcessor:
         raw_result: str, 
         source_path: str, 
         analysis_type: str = "general",
-        model_used: str = "gpt-4o"
+        model_used: str = "gpt-4o",
+        tokens_used: Optional[int] = None
     ) -> ProcessedResult:
         """
         Process a raw analysis result into a ProcessedResult with enhanced features.
@@ -66,6 +68,7 @@ class ResultsProcessor:
             analysis_type=analysis_type,
             processing_time=processing_time,
             model_used=model_used,
+            tokens_used=tokens_used,
             confidence_score=self._calculate_confidence_score(extracted_data)
         )
         
@@ -88,6 +91,23 @@ class ResultsProcessor:
         self.current_result = processed_result
         
         return processed_result
+
+    def process_analysis_outcome(
+        self,
+        outcome: AnalysisOutcome,
+        source_path: str,
+        analysis_type: str = "general",
+        model_used: Optional[str] = None
+    ) -> ProcessedResult:
+        if not outcome.success:
+            raise AnalysisFailure(outcome.error)
+        return self.process_analysis_result(
+            raw_result=outcome.content,
+            source_path=source_path,
+            analysis_type=analysis_type,
+            model_used=model_used or analysis.get_model(),
+            tokens_used=outcome.prompt_tokens + outcome.completion_tokens
+        )
     
     def analyze_text_enhanced(self, text: str, source_path: str = "") -> ProcessedResult:
         """

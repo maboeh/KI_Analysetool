@@ -34,10 +34,11 @@ class ExportOptions:
 class ExcelExportUI:
     """UI component for Excel export functionality"""
     
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, on_export_completed: Optional[Callable] = None):
         self.parent = parent
         self.exporter = ExcelExporter()
         self.export_options = ExportOptions()
+        self.on_export_completed = on_export_completed
         
     def show_export_dialog(self, result: ProcessedResult) -> bool:
         """Show export dialog and handle export process"""
@@ -53,6 +54,8 @@ class ExcelExportUI:
                 success = self.exporter.export_result(result, filename)
                 if success:
                     messagebox.showinfo("Export erfolgreich", f"Datei gespeichert: {filename}")
+                    if self.on_export_completed:
+                        self.on_export_completed(filename)
                     return True
                 else:
                     messagebox.showerror("Export fehlgeschlagen", "Fehler beim Speichern der Datei")
@@ -68,7 +71,10 @@ class ExcelExportUI:
             if not filename:
                 filename = create_excel_export_filename(result.source_info.file_path if result.source_info else "analysis")
             
-            return self.exporter.export_result(result, filename)
+            success = self.exporter.export_result(result, filename)
+            if success and self.on_export_completed:
+                self.on_export_completed(filename)
+            return success
         except Exception as e:
             print(f"Excel export error: {e}")
             return False

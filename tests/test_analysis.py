@@ -3,7 +3,12 @@ import os
 import tempfile
 import unittest
 from unittest.mock import patch, MagicMock
-from analysis import extract_transkript, text_extraction_youtube_website
+from analysis import (
+    AnalysisErrorCode,
+    analyze_text,
+    extract_transkript,
+    text_extraction_youtube_website,
+)
 
 class TestAnalysis(unittest.TestCase):
     @patch('analysis.YouTubeTranscriptApi')
@@ -63,6 +68,22 @@ class TestAnalysis(unittest.TestCase):
             self.assertNotIn("%PDF-1.4", result)
         finally:
             os.unlink(path)
+
+    @patch('analysis.get_api_key', return_value=None)
+    def test_analyze_text_returns_typed_missing_key_error(self, _mock_key):
+        outcome = analyze_text("Test")
+        self.assertFalse(outcome.success)
+        self.assertEqual(outcome.error.code, AnalysisErrorCode.MISSING_API_KEY)
+        self.assertEqual(outcome.content, "")
+
+    @patch('analysis.get_api_key', return_value="secret")
+    @patch('analysis.OpenAI')
+    def test_analyze_text_does_not_expose_sdk_error(self, mock_openai, _mock_key):
+        mock_openai.return_value.chat.completions.create.side_effect = ValueError("secret detail")
+        outcome = analyze_text("Test")
+        self.assertFalse(outcome.success)
+        self.assertEqual(outcome.error.code, AnalysisErrorCode.UNKNOWN)
+        self.assertNotIn("secret detail", outcome.error.user_message)
 
 
 if __name__ == '__main__':

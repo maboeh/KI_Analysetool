@@ -18,6 +18,8 @@ from analysis import (
     set_model,
     get_model,
     AVAILABLE_MODELS,
+    analyze_text,
+    outcome_from_legacy_text,
 )
 from config import check_api_key_exists, save_api_key, get_api_key
 
@@ -383,11 +385,16 @@ class Gui:
         prompt = self.get_prompt(content)
 
         if source_type == "pdf":
-            result_analysis = real_ai_analyse_forpdf(content, prompt)
+            outcome = outcome_from_legacy_text(real_ai_analyse_forpdf(content, prompt))
         else:
-            combined_text = prompt
-            result_analysis = real_ai_analyse_fortext(combined_text)
+            outcome = analyze_text(prompt)
 
+        if not outcome.success:
+            messagebox.showerror("Analyse fehlgeschlagen", outcome.error.user_message)
+            self.status_var.set("Analyse fehlgeschlagen")
+            return False
+
+        result_analysis = outcome.content
         self.output_text.config(state=tk.NORMAL)
         self.output_text.delete(1.0, tk.END)
         markdown_to_tkinter_text(result_analysis, self.output_text)
@@ -403,6 +410,7 @@ class Gui:
             )
         except Exception:
             self.status_var.set("Analyse abgeschlossen")
+        return True
 
     def save_note(self):
         note = self.output_text.get(1.0, tk.END).strip()

@@ -51,6 +51,16 @@ class TestLearningPath(unittest.TestCase):
         path2 = LearningPath(steps=DEFAULT_LEARNING_STEPS, profile_manager=profile_manager)
         self.assertTrue(path2.is_completed("first_analysis"))
 
+    def test_domain_event_completes_matching_step(self):
+        completed = self.learning_path.record_event("chart_created")
+        self.assertEqual(completed, "visualize")
+        self.assertTrue(self.learning_path.is_completed("visualize"))
+
+    def test_unknown_domain_event_does_not_change_progress(self):
+        completed = self.learning_path.record_event("tutorial_viewed")
+        self.assertIsNone(completed)
+        self.assertEqual(self.learning_path.completed_steps, [])
+
     def test_invalid_step_raises(self):
         with self.assertRaises(ValueError):
             self.learning_path.complete("does_not_exist")

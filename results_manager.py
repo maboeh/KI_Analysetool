@@ -91,41 +91,49 @@ class ResultsManager:
         
         # Save JSON content to file
         json_file_path = self.results_dir / f"{result.id}.json"
-        with open(json_file_path, 'w', encoding='utf-8') as f:
+        temporary_json_path = self.results_dir / f".{result.id}.json.tmp"
+        with open(temporary_json_path, 'w', encoding='utf-8') as f:
             json.dump(result.to_dict(), f, ensure_ascii=False, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
         
         # Save metadata to database
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
-                INSERT OR REPLACE INTO results (
-                    id, title, analysis_type, source_type, source_url, 
-                    source_file_path, source_file_name, content_preview,
-                    has_visualizations, has_exportable_data, processing_time,
-                    model_used, tokens_used, confidence_score, tags,
-                    created_at, updated_at, json_file_path
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                result.id,
-                name,
-                result.metadata.analysis_type,
-                result.source_info.type if result.source_info else None,
-                result.source_info.url if result.source_info else None,
-                result.source_info.file_path if result.source_info else None,
-                result.source_info.file_name if result.source_info else None,
-                result.content[:500] + "..." if len(result.content) > 500 else result.content,
-                len(result.visualizations) > 0,
-                result.has_exportable_data(),
-                result.metadata.processing_time,
-                result.metadata.model_used,
-                result.metadata.tokens_used,
-                result.metadata.confidence_score,
-                json.dumps(result.metadata.tags),
-                result.created_at.isoformat(),
-                result.updated_at.isoformat(),
-                str(json_file_path)
-            ))
-            conn.commit()
-        
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute("""
+                    INSERT OR REPLACE INTO results (
+                        id, title, analysis_type, source_type, source_url,
+                        source_file_path, source_file_name, content_preview,
+                        has_visualizations, has_exportable_data, processing_time,
+                        model_used, tokens_used, confidence_score, tags,
+                        created_at, updated_at, json_file_path
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    result.id,
+                    name,
+                    result.metadata.analysis_type,
+                    result.source_info.type if result.source_info else None,
+                    result.source_info.url if result.source_info else None,
+                    result.source_info.file_path if result.source_info else None,
+                    result.source_info.file_name if result.source_info else None,
+                    result.content[:500] + "..." if len(result.content) > 500 else result.content,
+                    len(result.visualizations) > 0,
+                    result.has_exportable_data(),
+                    result.metadata.processing_time,
+                    result.metadata.model_used,
+                    result.metadata.tokens_used,
+                    result.metadata.confidence_score,
+                    json.dumps(result.metadata.tags),
+                    result.created_at.isoformat(),
+                    result.updated_at.isoformat(),
+                    str(json_file_path)
+                ))
+                os.replace(temporary_json_path, json_file_path)
+                conn.commit()
+        finally:
+            if temporary_json_path.exists():
+                temporary_json_path.unlink()
+
         return result.id
     
     def load_result(self, result_id: str) -> Optional[ProcessedResult]:

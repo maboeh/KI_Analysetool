@@ -61,6 +61,11 @@ class DataType(Enum):
     TEXT = "text"
 
 
+class ResultStatus(Enum):
+    SUCCESS = "success"
+    PARTIAL = "partial"
+
+
 # Base interfaces for extensibility
 class Extractable(ABC):
     """Base interface for extractable data types."""
@@ -381,6 +386,7 @@ class ProcessedResult:
     visualizations: List[Visualization] = field(default_factory=list)
     follow_up_actions: List[Action] = field(default_factory=list)
     metadata: ResultMetadata = field(default_factory=lambda: ResultMetadata(analysis_type="unknown"))
+    status: ResultStatus = ResultStatus.SUCCESS
     created_at: datetime = field(default_factory=datetime.now)
     updated_at: datetime = field(default_factory=datetime.now)
     
@@ -393,6 +399,7 @@ class ProcessedResult:
             'visualizations': [viz.to_dict() for viz in self.visualizations],
             'follow_up_actions': [action.to_dict() for action in self.follow_up_actions],
             'metadata': self.metadata.to_dict(),
+            'status': self.status.value,
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat()
         }
@@ -407,6 +414,7 @@ class ProcessedResult:
             visualizations=[Visualization(**viz) for viz in data.get('visualizations', [])],
             follow_up_actions=[Action(**action) for action in data.get('follow_up_actions', [])],
             metadata=ResultMetadata(**data.get('metadata', {})),
+            status=ResultStatus(data.get('status', ResultStatus.SUCCESS.value)),
             created_at=datetime.fromisoformat(data['created_at']),
             updated_at=datetime.fromisoformat(data['updated_at'])
         )

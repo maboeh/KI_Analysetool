@@ -20,7 +20,8 @@ class ResultsBrowser:
     """GUI component for browsing and managing stored results."""
     
     def __init__(self, parent, results_manager: ResultsManager, 
-                 on_result_selected: Optional[Callable[[ProcessedResult], None]] = None):
+                 on_result_selected: Optional[Callable[[ProcessedResult], None]] = None,
+                 on_event: Optional[Callable[[str], None]] = None):
         """
         Initialize the results browser.
         
@@ -32,6 +33,7 @@ class ResultsBrowser:
         self.parent = parent
         self.results_manager = results_manager
         self.on_result_selected = on_result_selected
+        self.on_event = on_event
         
         # Current filter state
         self.current_filters = {}
@@ -531,6 +533,8 @@ class ResultsBrowser:
         
         # Create comparison window
         ComparisonWindow(self.parent, self.selected_results, self.results_manager)
+        if self.on_event:
+            self.on_event("results_compared")
     
     def _combine_selected_results(self):
         """Combine selected results into a new result."""

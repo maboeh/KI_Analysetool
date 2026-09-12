@@ -14,7 +14,15 @@ from pathlib import Path
 from data_models import (
     ProcessedResult, Action, ActionType, SourceInfo, ResultMetadata
 )
+from analysis import AnalysisFailure, outcome_from_legacy_text
 import analysis
+
+
+def _analyze_text_or_raise(prompt: str) -> str:
+    outcome = outcome_from_legacy_text(analysis.real_ai_analyse_fortext(prompt))
+    if not outcome.success:
+        raise AnalysisFailure(outcome.error)
+    return outcome.content
 
 
 @dataclass
@@ -143,7 +151,7 @@ class FollowUpActionExecutor:
         if context.step_number > 1:
             prompt += f"\n\nHinweis: Dies ist Schritt {context.step_number} einer Analyse-Kette."
         
-        raw_result = analysis.real_ai_analyse_fortext(prompt)
+        raw_result = _analyze_text_or_raise(prompt)
         
         return self._create_follow_up_result(
             raw_result, result, action, context, "summarization"
@@ -168,7 +176,7 @@ class FollowUpActionExecutor:
             previous_actions = ", ".join([action.value for action in context.action_chain[:-1]])
             prompt += f"\n\nVorherige Analyseschritte: {previous_actions}"
         
-        raw_result = analysis.real_ai_analyse_fortext(prompt)
+        raw_result = _analyze_text_or_raise(prompt)
         
         return self._create_follow_up_result(
             raw_result, result, action, context, "deep_analysis"
@@ -189,7 +197,7 @@ class FollowUpActionExecutor:
             prompt += f" im {style} Stil"
         prompt += f":\n\n{result.content}"
         
-        raw_result = analysis.real_ai_analyse_fortext(prompt)
+        raw_result = _analyze_text_or_raise(prompt)
         
         return self._create_follow_up_result(
             raw_result, result, action, context, "translation"
@@ -210,7 +218,7 @@ class FollowUpActionExecutor:
         else:
             prompt = f"Führe eine {analysis_type} des folgenden Textes durch:\n\n{result.content}"
         
-        raw_result = analysis.real_ai_analyse_fortext(prompt)
+        raw_result = _analyze_text_or_raise(prompt)
         
         return self._create_follow_up_result(
             raw_result, result, action, context, "custom_analysis"
@@ -230,7 +238,7 @@ class FollowUpActionExecutor:
             f"Vermeide Fachjargon oder erkläre unbekannte Begriffe kurz:\n\n{result.content}"
         )
 
-        raw_result = analysis.real_ai_analyse_fortext(prompt)
+        raw_result = _analyze_text_or_raise(prompt)
 
         return self._create_follow_up_result(
             raw_result, result, action, context, "simple_explanation"

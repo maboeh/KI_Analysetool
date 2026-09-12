@@ -17,9 +17,10 @@ from typing import Optional, List, Dict, Any
 
 # Import existing components
 from Gui import Gui as BaseGui
-from analysis import (extract_transkript, extract_text_from_website,
-                     text_extraction_youtube_website, real_ai_analyse_fortext,
-                     real_ai_analyse_forpdf, get_usage_stats, reset_usage_stats)
+from analysis import (AnalysisFailure, analyze_text, extract_transkript,
+                     extract_text_from_website, text_extraction_youtube_website,
+                     real_ai_analyse_fortext, real_ai_analyse_forpdf,
+                     get_usage_stats, reset_usage_stats)
 from config import check_api_key_exists, save_api_key, get_api_key
 from markdown_formatter import configure_markdown_tags, markdown_to_tkinter_text
 from user_profile import UserProfileManager
@@ -244,7 +245,10 @@ class EnhancedGui(BaseGui):
         self.viz_frame = ttk.Frame(self.result_notebook)
         self.result_notebook.add(self.viz_frame, text="Visualisierung")
         
-        self.visualization_panel = DataVisualizationPanel(self.viz_frame)
+        self.visualization_panel = DataVisualizationPanel(
+            self.viz_frame,
+            on_chart_created=self._on_chart_created
+        )
         
         # Add help indicator for visualization tab
         viz_help_frame = ttk.Frame(self.viz_frame)
@@ -257,7 +261,10 @@ class EnhancedGui(BaseGui):
         self.export_frame = ttk.Frame(self.result_notebook)
         self.result_notebook.add(self.export_frame, text="Datenexport")
         
-        self.excel_export_ui = ExcelExportUI(self.export_frame)
+        self.excel_export_ui = ExcelExportUI(
+            self.export_frame,
+            on_export_completed=self._on_export_completed
+        )
         
         # Add help indicator for export tab
         export_help_frame = ttk.Frame(self.export_frame)
@@ -272,7 +279,12 @@ class EnhancedGui(BaseGui):
         self.browser_frame = ttk.Frame(self.result_notebook)
         self.result_notebook.add(self.browser_frame, text="Ergebnisverlauf")
         
-        self.results_browser = ResultsBrowser(self.browser_frame, self.results_manager)
+        self.results_browser = ResultsBrowser(
+            self.browser_frame,
+            self.results_manager,
+            on_result_selected=self._on_historical_result_selected,
+            on_event=self._on_learning_event
+        )
         
         # Add help indicator for results browser tab
         browser_help_frame = ttk.Frame(self.browser_frame)
@@ -426,28 +438,32 @@ class EnhancedGui(BaseGui):
             if custom_prompt:
                 # Use custom prompt
                 combined_prompt = f"{custom_prompt}\n\nInhalt: {content}"
-                ai_result = real_ai_analyse_fortext(combined_prompt)
+                outcome = analyze_text(combined_prompt)
             else:
                 # Use predefined analysis type
-                ai_result = real_ai_analyse_fortext(predefined_prompt)
+                outcome = analyze_text(predefined_prompt)
 
             # Process result through enhanced processor
-            processed_result = self.results_processor.process_analysis_result(
-                ai_result,
+            processed_result = self.results_processor.process_analysis_outcome(
+                outcome,
                 source_path,
                 analysis_type
             )
 
             # Update learning path for file-based analyses
+            if custom_prompt:
+                self.learning_path.record_event("custom_prompt_succeeded")
             if analysis_type in ("file_analysis", "pdf", "excel", "csv", "image", "multi_file", "enhanced_analysis"):
                 try:
-                    self.learning_path.complete("analyze_file")
+                    self.learning_path.record_event("file_analyzed")
                 except Exception:
                     pass
 
             # Update UI in main thread
             self._safe_after(0, self._display_enhanced_result, processed_result)
 
+        except AnalysisFailure as e:
+            self._safe_after(0, self._show_error, e.error.user_message)
         except Exception as e:
             error_msg = self.error_handler.create_user_friendly_message(
                 self.error_handler.handle_error(e, {"operation": "analysis"})
@@ -510,7 +526,7 @@ class EnhancedGui(BaseGui):
 
         # Update learning path progress
         try:
-            self.learning_path.complete("first_analysis")
+            self.learning_path.record_event("analysis_succeeded")
             self._update_learning_path_panel()
         except Exception:
             pass
@@ -712,8 +728,11 @@ class EnhancedGui(BaseGui):
     def _run_action_button_analysis(self, action_name: str, prompt: str):
         """Run the AI analysis for an action button in a background thread."""
         try:
-            result = real_ai_analyse_fortext(prompt)
-            self._safe_after(0, self._display_action_button_result, action_name, result)
+            outcome = analyze_text(prompt)
+            if not outcome.success:
+                self._safe_after(0, self._show_error, outcome.error.user_message)
+                return
+            self._safe_after(0, self._display_action_button_result, action_name, outcome.content)
         except Exception as e:
             error_msg = self.error_handler.create_user_friendly_message(
                 self.error_handler.handle_error(e, {"operation": "action_button"})
@@ -737,7 +756,8 @@ class EnhancedGui(BaseGui):
 
         # Update learning path for follow-up actions
         try:
-            self.learning_path.complete("try_follow_up")
+            event_name = "data_extracted" if action_name == "extract_data" else "follow_up_succeeded"
+            self.learning_path.record_event(event_name)
             self._update_learning_path_panel()
         except Exception:
             pass
@@ -771,12 +791,21 @@ class EnhancedGui(BaseGui):
         finally:
             self.progress_indicator.stop()
             
-    def _on_chart_created(self, chart_path: str):
+    def _on_learning_event(self, event_name: str):
+        self.learning_path.record_event(event_name)
+        self._update_learning_path_panel()
+
+    def _on_chart_created(self, visualization):
         """Handle chart creation completion."""
-        self.status_var.set(f"Diagramm erstellt: {os.path.basename(chart_path)}")
+        self.learning_path.record_event("chart_created")
+        self._update_learning_path_panel()
+        chart_name = visualization.file_path or visualization.chart_type.value
+        self.status_var.set(f"Diagramm erstellt: {os.path.basename(chart_name)}")
         
     def _on_export_completed(self, export_path: str):
         """Handle export completion."""
+        self.learning_path.record_event("excel_exported")
+        self._update_learning_path_panel()
         self.status_var.set(f"Export abgeschlossen: {os.path.basename(export_path)}")
         messagebox.showinfo("Export erfolgreich", f"Daten wurden exportiert nach:\n{export_path}")
         
@@ -1200,11 +1229,12 @@ class EnhancedGui(BaseGui):
                     return
             
             # Fallback to original method for backward compatibility
-            super().send_question()
+            if not super().send_question():
+                return
 
             # Track the basic analysis step after a successful run.
             try:
-                self.learning_path.complete("first_analysis")
+                self.learning_path.record_event("analysis_succeeded")
                 self._update_learning_path_panel()
             except Exception:
                 pass
@@ -1233,6 +1263,8 @@ class EnhancedGui(BaseGui):
                     self.current_result,
                     f"Analyse vom {self.current_result.created_at.strftime('%d.%m.%Y %H:%M')}"
                 )
+                self.learning_path.record_event("result_saved")
+                self._update_learning_path_panel()
                 self.status_var.set(f"Ergebnis gespeichert (ID: {result_id[:8]}...)")
             except Exception as e:
                 self.status_var.set("Fehler beim Speichern des Ergebnisses")
@@ -1486,9 +1518,7 @@ class EnhancedGui(BaseGui):
             })
 
         def on_finish():
-            self.learning_path.complete(step_id)
-            self._update_learning_path_panel()
-            self.status_var.set(f"Lernpfad-Schritt abgeschlossen: {step.title}")
+            self.status_var.set(f"Anleitung beendet: {step.title}. Führe die Aktion jetzt selbst aus.")
 
         if steps:
             overlay = TutorialOverlay(self.window, steps=steps, on_finish=on_finish)

@@ -24,6 +24,19 @@ class LearningStep:
 
 
 # Default learning path. Steps are designed to be completed in order.
+LEARNING_EVENT_STEPS = {
+    "analysis_succeeded": "first_analysis",
+    "follow_up_succeeded": "try_follow_up",
+    "file_analyzed": "analyze_file",
+    "data_extracted": "extract_data",
+    "chart_created": "visualize",
+    "excel_exported": "export_excel",
+    "result_saved": "save_result",
+    "results_compared": "compare_results",
+    "custom_prompt_succeeded": "custom_prompt",
+}
+
+
 DEFAULT_LEARNING_STEPS: List[LearningStep] = [
     LearningStep(
         id="first_analysis",
@@ -139,6 +152,13 @@ class LearningPath:
             raise ValueError(f"Unbekannter Lernpfad-Schritt: {step_id}")
         if not self.is_completed(step_id):
             self._profile_manager.complete_step(step_id)
+
+    def record_event(self, event_name: str) -> Optional[str]:
+        step_id = LEARNING_EVENT_STEPS.get(event_name)
+        if not step_id:
+            return None
+        self.complete(step_id)
+        return step_id
 
     def get_step(self, step_id: str) -> Optional[LearningStep]:
         return self._step_map.get(step_id)

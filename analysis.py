@@ -1,6 +1,9 @@
 import os
 import time
 import logging
+from dataclasses import dataclass
+from enum import Enum
+from typing import Optional
 from urllib.parse import urlparse, parse_qs
 
 from openai import OpenAI
@@ -18,6 +21,45 @@ AVAILABLE_MODELS = {
 }
 
 DEFAULT_MODEL = "gpt-4o"
+
+
+class AnalysisErrorCode(Enum):
+    MISSING_API_KEY = "missing_api_key"
+    CONTENT_TOO_LONG = "content_too_long"
+    RATE_LIMITED = "rate_limited"
+    CONNECTION_FAILED = "connection_failed"
+    TIMED_OUT = "timed_out"
+    INVALID_INPUT = "invalid_input"
+    PROVIDER_ERROR = "provider_error"
+    UNKNOWN = "unknown"
+
+
+@dataclass(frozen=True)
+class AnalysisError:
+    code: AnalysisErrorCode
+    user_message: str
+    retryable: bool = False
+
+
+class AnalysisFailure(Exception):
+    def __init__(self, error: AnalysisError):
+        super().__init__(error.user_message)
+        self.error = error
+
+
+@dataclass(frozen=True)
+class AnalysisOutcome:
+    content: str = ""
+    error: Optional[AnalysisError] = None
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+
+    @property
+    def success(self) -> bool:
+        return self.error is None
+
+    def to_legacy_text(self) -> str:
+        return self.content if self.success else f"Fehler: {self.error.user_message}"
 
 
 class AnalysisSession:
@@ -278,16 +320,28 @@ def text_extraction_youtube_website(file_path_or_url):
         return f"Ein Fehler ist aufgetreten: {e}"
 
 
-def real_ai_analyse_fortext(text):
+def analyze_text(text: str) -> AnalysisOutcome:
+    if not isinstance(text, str) or not text.strip():
+        return AnalysisOutcome(error=AnalysisError(
+            AnalysisErrorCode.INVALID_INPUT,
+            "Bitte geben Sie einen Inhalt für die Analyse ein."
+        ))
+
+    is_valid, _est_tokens, _max_tokens, msg = validate_content_length(text)
+    if not is_valid:
+        return AnalysisOutcome(error=AnalysisError(
+            AnalysisErrorCode.CONTENT_TOO_LONG,
+            msg
+        ))
+
+    api_key = get_api_key()
+    if not api_key:
+        return AnalysisOutcome(error=AnalysisError(
+            AnalysisErrorCode.MISSING_API_KEY,
+            "Kein API-Schlüssel verfügbar. Bitte hinterlegen Sie einen OpenAI API-Key."
+        ))
+
     try:
-        is_valid, est_tokens, max_tokens, msg = validate_content_length(text)
-        if not is_valid:
-            return f"Fehler: {msg}"
-
-        api_key = get_api_key()
-        if not api_key:
-            return "Fehler: Kein API-Schlüssel verfügbar"
-
         client = OpenAI(api_key=api_key)
 
         def _call():
@@ -297,18 +351,67 @@ def real_ai_analyse_fortext(text):
             )
 
         response = _retry_api_call(_call)
-
+        prompt_tokens = 0
+        completion_tokens = 0
         if hasattr(response, 'usage') and response.usage:
-            _default_session.record_usage(
-                response.usage.prompt_tokens,
-                response.usage.completion_tokens
-            )
+            raw_prompt_tokens = response.usage.prompt_tokens
+            raw_completion_tokens = response.usage.completion_tokens
+            if isinstance(raw_prompt_tokens, int) and isinstance(raw_completion_tokens, int):
+                prompt_tokens = raw_prompt_tokens
+                completion_tokens = raw_completion_tokens
+                _default_session.record_usage(prompt_tokens, completion_tokens)
 
-        return response.choices[0].message.content
+        return AnalysisOutcome(
+            content=response.choices[0].message.content or "",
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens
+        )
+    except RateLimitError:
+        logger.exception("Rate-Limit bei der KI-Analyse")
+        return AnalysisOutcome(error=AnalysisError(
+            AnalysisErrorCode.RATE_LIMITED,
+            "Das API-Limit wurde erreicht. Bitte versuchen Sie es später erneut.",
+            retryable=True
+        ))
+    except APITimeoutError:
+        logger.exception("Zeitüberschreitung bei der KI-Analyse")
+        return AnalysisOutcome(error=AnalysisError(
+            AnalysisErrorCode.TIMED_OUT,
+            "Die Analyse hat zu lange gedauert. Bitte versuchen Sie es erneut.",
+            retryable=True
+        ))
+    except APIConnectionError:
+        logger.exception("Verbindungsfehler bei der KI-Analyse")
+        return AnalysisOutcome(error=AnalysisError(
+            AnalysisErrorCode.CONNECTION_FAILED,
+            "OpenAI ist derzeit nicht erreichbar. Bitte prüfen Sie die Verbindung und versuchen Sie es erneut.",
+            retryable=True
+        ))
+    except APIError:
+        logger.exception("API-Fehler bei der KI-Analyse")
+        return AnalysisOutcome(error=AnalysisError(
+            AnalysisErrorCode.PROVIDER_ERROR,
+            "Der KI-Dienst konnte die Anfrage nicht verarbeiten. Bitte prüfen Sie Eingabe und Modell."
+        ))
+    except Exception:
+        logger.exception("Unerwarteter Fehler bei der KI-Analyse")
+        return AnalysisOutcome(error=AnalysisError(
+            AnalysisErrorCode.UNKNOWN,
+            "Die Analyse konnte nicht abgeschlossen werden. Bitte versuchen Sie es erneut."
+        ))
 
-    except Exception as e:
-        logger.exception("Fehler bei der KI-Analyse")
-        return f"Fehler bei der KI-Analyse: {e}"
+
+def outcome_from_legacy_text(text: str) -> AnalysisOutcome:
+    if text.startswith("Fehler:") or text.startswith("Error:"):
+        return AnalysisOutcome(error=AnalysisError(
+            AnalysisErrorCode.UNKNOWN,
+            "Die Analyse konnte nicht abgeschlossen werden. Bitte prüfen Sie die Eingabe und versuchen Sie es erneut."
+        ))
+    return AnalysisOutcome(content=text)
+
+
+def real_ai_analyse_fortext(text):
+    return analyze_text(text).to_legacy_text()
 
 
 def real_ai_analyse_forpdf(pdf_path, prompt):
