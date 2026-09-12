@@ -16,13 +16,20 @@ import uuid
 
 # Enums for type safety
 class ActionType(Enum):
-    """Types of follow-up actions available for results."""
+    """Types of follow-up actions available for results.
+
+    Single-Source-of-Truth für alle Module. Werte ohne Umlaute,
+    damit String-Matching in der GUI konsistent bleibt.
+    """
     SUMMARIZE = "zusammenfassen"
-    DEEPEN = "vertiefen" 
-    TRANSLATE = "übersetzen"
+    DEEPEN = "vertiefen"
+    TRANSLATE = "uebersetzen"
     ANALYZE = "analysieren"
+    EXPLAIN = "einfach_erklären"
     EXPORT = "exportieren"
     VISUALIZE = "visualisieren"
+    VERGLEICHEN = "vergleichen"
+    CUSTOM = "custom"
 
 
 class ChartType(Enum):
@@ -32,7 +39,6 @@ class ChartType(Enum):
     PIE = "pie"
     SCATTER = "scatter"
     HISTOGRAM = "histogram"
-    HEATMAP = "heatmap"
 
 
 class EntityType(Enum):

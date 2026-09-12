@@ -36,6 +36,14 @@
    - Die Anwendung führt automatisch eine Setup-Validierung durch
    - Bei Fehlern werden Lösungsvorschläge angezeigt
 
+### Onboarding und Lernpfad
+
+- Beim ersten Start erscheint ein kurzer **Willkommensdialog**, der die wichtigsten Bereiche erklärt.
+- Das **Lernpfad-Panel** oberhalb des Hauptinhalts zeigt, welche Schritte Sie bereits absolviert haben und was als Nächstes kommt.
+- Über **Ansicht → Erfahrungsgrad ändern** können Sie zwischen **Anfänger**, **Fortgeschritten** und **Experte** wechseln.
+- Blaue **?**-Symbole neben vielen Elementen liefern kontextuelle Kurzhilfen.
+- Die vollständige Dokumentation finden Sie unter **Hilfe → Dokumentation anzeigen** oder in der Datei `HELP.md`.
+
 ### Benutzeroberfläche verstehen
 
 ```
@@ -191,10 +199,33 @@ Nach jeder Analyse erscheinen kontextuelle Aktions-Buttons:
    - Führt eine Meta-Analyse des Ergebnisses durch
    - Identifiziert Muster und Trends
 
+5. **Einfach erklären** 💡
+   - Formuliert das Ergebnis so, dass ein Anfänger es versteht
+   - Ideal zum Lernen oder für Zusammenfassungen für Nicht-Experten
+
 #### Analyse-Historie nutzen
 - **Navigation**: Verwenden Sie die Pfeile, um zwischen Analyseschritten zu navigieren
 - **Verzweigungen**: Erstellen Sie verschiedene Analyse-Pfade
 - **Vergleich**: Vergleichen Sie verschiedene Analyseergebnisse
+
+### Modellwahl und Kosten
+
+Rechts neben dem Analyse-Typ-Dropdown können Sie das OpenAI-Modell wählen:
+
+| Modell | Geschwindigkeit | Kosten | Wann verwenden? |
+|--------|-----------------|--------|-----------------|
+| **GPT-4o mini** | Sehr schnell | Sehr günstig | Kurze Texte, Tests, einfache Zusammenfassungen |
+| **GPT-4o** | Schnell | Günstig | Beste Wahl für die meisten Analysen |
+| **GPT-4 Turbo** | Langsamer | Teurer | Sehr komplexe PDFs, lange Dokumente |
+
+Die Statusleiste zeigt nach jeder Analyse die geschätzten Gesamtkosten und den bisherigen Token-Verbrauch der Sitzung an.
+
+### Prompt-Bibliothek
+
+Klicken Sie auf den Button **Vorlagen** neben dem Prompt-Feld, um wiederverwendbare Prompts zu laden:
+- Prompts sind nach Kategorien gruppiert.
+- Jede Vorlage enthält eine kurze Erklärung, wann sie sinnvoll ist.
+- Die Schwierigkeit wird angepasst: Im Anfängermodus werden nur einfache Vorlagen angezeigt.
 
 ### Automatische Datenextraktion
 
@@ -1261,5 +1292,49 @@ im Kontext des Textes."
    - Was funktioniert gut?
    - Welche Probleme traten auf?
    - Wie können Prozesse verbessert werden?
+
+## Neue Features (Version 2.1)
+
+### Backup & Restore
+- **Backup erstellen**: Menü *Erweiterte Funktionen → Backup erstellen* sichert die Ergebnis-Datenbank und alle Ergebnis-Dateien als ZIP-Archiv im `backups/`-Verzeichnis. Optional kann die Konfiguration (ohne API-Key) inkludiert werden.
+- **Backup wiederherstellen**: Menü *Erweiterte Funktionen → Backup wiederherstellen* lädt ein ZIP-Archiv und überschreibt die aktuelle Datenbank. Bestehende Daten gehen verloren — es erscheint eine Bestätigungsabfrage.
+
+### Persistente Tags & Favoriten
+- **Tags verwalten**: Menü *Erweiterte Funktionen → Tags verwalten* öffnet einen Dialog, in dem Sie dem aktuellen Ergebnis Tags hinzufügen oder entfernen können. Alle verwendeten Tags werden angezeigt und in der Datenbank gespeichert.
+- **Favoriten**: Menü *Erweiterte Funktionen → Favoriten anzeigen* listet alle markierten Ergebnisse. Im Favoriten-Dialog können Sie Ergebnisse öffnen oder die Favoriten-Markierung entfernen.
+- **Tag-Filter**: Im Ergebnisverlauf können Sie nach Tags filtern.
+
+### PDF-Report-Generator
+- **Vollständiger Report**: Menü *Erweiterte Funktionen → PDF-Report erstellen* generiert einen strukturierten Report mit:
+  - Deckblatt (Titel, Datum, Analysetyp, Modell, Quelle, Tags)
+  - Inhaltsverzeichnis (automatisch generiert)
+  - Detailanalyse (vollständiger Inhalt)
+  - Extrahierte Tabellen, Entitäten und numerische Werte
+  - Eingebettete Visualisierungen (optional)
+  - Anhang mit Metadaten und Methodik-Hinweis
+
+### Batch-Export
+- **Mehrere Ergebnisse exportieren**: Menü *Erweiterte Funktionen → Batch-Export (ZIP)* leitet zum Ergebnisverlauf. Wählen Sie mehrere Ergebnisse mit Strg+Klick, rechtsklick → Exportieren. Alle ausgewählten Ergebnisse werden in ein ZIP-Archiv gepackt.
+
+### Ergebnis-Vergleich
+- **Ergebnisse vergleichen**: Menü *Erweiterte Funktionen → Ergebnisse vergleichen* öffnet den Ergebnisverlauf. Wählen Sie zwei oder mehr Ergebnisse mit Strg+Klick, rechtsklick → Vergleichen. Es öffnet sich eine Vergleichsansicht mit Inhalt, Metadaten und Daten nebeneinander.
+
+### Token- & Kosten-Übersicht
+- **API-Nutzung anzeigen**: Menü *Erweiterte Funktionen → Token- & Kosten-Übersicht* zeigt den Token-Verbrauch und die geschätzten Kosten der aktuellen Sitzung sowie das verwendete Modell. Der Zähler kann zurückgesetzt werden.
+
+### Analyse-Historie
+- **Verlauf anzeigen**: Menü *Erweiterte Funktionen → Analyse-Historie anzeigen* zeigt alle Analyseschritte der aktuellen Sitzung mit Verzweigungsinformationen (Parent-Step, Action-Chain). Sitzungen können als JSON gespeichert werden.
+
+### Auto-Save
+- **Automatisches Speichern**: In den Einstellungen (*Erweiterte Funktionen → Einstellungen*) kann Auto-Save aktiviert/deaktiviert werden. Wenn aktiv, wird jedes Analyseergebnis nach Abschluss automatisch in der Datenbank gespeichert.
+
+### Tastatur-Shortcuts
+- **Strg+Enter**: Analyse starten
+- **Strg+S**: Aktuelle Notiz speichern
+- **Strg+E**: Aktuellen Inhalt als PDF exportieren
+- **Strg+F**: Favoriten anzeigen
+
+### Direkte Texteingabe
+- **Text-Tab**: Neben Webseite, YouTube und PDF gibt es jetzt einen eigenen "Text"-Tab für direkte Texteingabe ohne Datei-Upload. Fügen Sie Text aus der Zwischenablage ein oder tippen Sie direkt.
 
 Diese umfassende Anleitung hilft Ihnen dabei, das KI Analysetool optimal zu nutzen und häufige Probleme zu vermeiden. Bei weiteren Fragen konsultieren Sie die technische Dokumentation oder kontaktieren Sie den Support.

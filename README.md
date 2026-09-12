@@ -40,7 +40,7 @@ Deutschsprachige Benutzer, die schnell Erkenntnisse aus verschiedenen Inhaltsque
 - **Bildverarbeitung**: PNG, JPG, PDF mit OCR-Texterkennung
 - **CSV-Import**: Automatische Delimiter-Erkennung und Spalten-Mapping
 - **Multi-File-Processing**: Gleichzeitige Verarbeitung mehrerer Dateien
-- **Drag & Drop**: Intuitive Datei-Upload-Funktionalität
+- **Datei-Dialog**: Auswahl über den System-Datei-Dialog
 
 ### 💾 Ergebnis-Management
 - **Lokale Speicherung**: Sichere Aufbewahrung aller Analyseergebnisse
@@ -198,11 +198,16 @@ cache_size_mb = 500
 #### Sicherheitseinstellungen
 ```ini
 [SECURITY]
-encrypt_stored_results = true
 api_timeout_seconds = 30
 max_retries = 3
 rate_limit_requests_per_minute = 60
 ```
+
+**Wichtig:**
+- Der OpenAI API-Key wird bevorzugt im sicheren OS-Keyring gespeichert.
+- Falls kein Keyring verfügbar ist, wird eine `config.ini` mit eingeschränkten Rechten (`0o600`) verwendet.
+- Secrets werden durch einen Log-Filter maskiert und niemals in `logs/application.log` geschrieben.
+- URLs werden auf SSRF-Schutz geprüft: interne IPs, Loopback und Cloud-Metadata sind blockiert.
 
 ## Schnellstart
 
@@ -233,7 +238,7 @@ python main.py
 4. Folgeaktionen wie Zusammenfassung oder Vertiefung ausführen
 
 #### Datei-Upload und -Verarbeitung
-1. Dateien per Drag & Drop oder Datei-Dialog hochladen
+1. Dateien über den Datei-Dialog auswählen
 2. Vorschau der extrahierten Inhalte prüfen
 3. Analyse-Parameter anpassen
 4. Verarbeitung starten und Ergebnisse erhalten
@@ -243,6 +248,23 @@ python main.py
 2. Datentypen und Kategorien validieren
 3. Excel-Export mit strukturierten Tabellen erstellen
 4. Visualisierungen basierend auf numerischen Daten generieren
+
+### Hilfe und Lernsystem
+
+#### Onboarding
+Beim ersten Start führt ein kurzer Willkommensdialog durch die wichtigsten Bereiche der App.
+
+#### Anfänger- / Fortgeschrittenen- / Experten-Modus
+Über das Menü **Ansicht → Erfahrungsgrad ändern** lässt sich der Modus wechseln:
+- **Anfänger**: Lernpfad-Panel wird eingeblendet, mehr Erklärungen über Tooltipps.
+- **Fortgeschritten**: Ausgewogener Modus mit optionaler Hilfe.
+- **Experte**: Lernpfad ausgeblendet, volle Funktionalität ohne störende Hinweise.
+
+#### Lernpfad
+Das Lernpfad-Panel führt Schritt für Schritt vom ersten Prompt über Folgeaktionen, Datei-Analyse, Datenextraktion, Visualisierung und Export bis zum Experten-Workflow.
+
+#### Kontextuelle Hilfe
+Kleine blaue **?**-Symbole erklären direkt an der jeweiligen Stelle, was ein Element tut. Die zentrale Dokumentation befindet sich in **HELP.md** und ist über das Menü **Hilfe** erreichbar.
 
 ### Erweiterte Funktionen
 
@@ -361,6 +383,21 @@ python -m cProfile -o profile.stats main.py
 [Lizenz-Information hier einfügen]
 
 ## Changelog
+
+### Version 2.1.0 (Hilfe, Lernpfad und Sicherheit)
+- ✨ Onboarding-Dialog für Erstnutzer
+- ✨ Anfänger-/Fortgeschrittenen-/Experten-Modus mit persistentem Profil
+- ✨ Lernpfad-Panel mit 9 Schritten vom ersten Prompt bis zum Quellenvergleich
+- ✨ Tutorial-Overlay für Schritt-für-Schritt-Hervorhebungen
+- ✨ Prompt-Bibliothek mit erklärenden Vorlagen
+- ✨ Zentrale Hilfe-Datei `HELP.md` mit Suchfunktion im Hilfe-Fenster
+- ✨ Modellwahl-Dropdown mit Kosten-Tooltip in der GUI
+- ✨ Statusleiste zeigt geschätzte Gesamtkosten und Token-Verbrauch
+- ✨ „Einfach erklären“-Folgeaktion
+- 🛡️ Verbesserter API-Key-Schutz mit Secret-Log-Filter
+- 🛡️ Erweiterter SSRF-Schutz mit Path-Validierung und redirect-safe Requests
+- 🐛 Tab-Routing per Referenz statt fragilem Index
+- 🐛 Thread-sichere UI-Updates nach Fenster-Schließung
 
 ### Version 2.0.0 (Enhanced Results Processing)
 - ✨ Erweiterte Ergebnisdarstellung mit Syntax-Highlighting

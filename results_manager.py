@@ -8,6 +8,7 @@ of ProcessedResult objects using SQLite for metadata and JSON for content.
 import sqlite3
 import json
 import os
+import zipfile
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 from pathlib import Path
@@ -62,7 +63,15 @@ class ResultsManager:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_analysis_type ON results(analysis_type)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_source_type ON results(source_type)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_tags ON results(tags)")
-            
+
+            # Favoriten-Spalte nachrüsten (falls DB aus älterer Version existiert)
+            try:
+                conn.execute("ALTER TABLE results ADD COLUMN is_favorite BOOLEAN DEFAULT 0")
+            except sqlite3.OperationalError:
+                pass  # Spalte existiert bereits
+
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_is_favorite ON results(is_favorite)")
+
             conn.commit()
     
     def save_result(self, result: ProcessedResult, name: Optional[str] = None) -> str:
@@ -454,3 +463,117 @@ class ResultsManager:
             ))
             
             return cursor.rowcount > 0
+
+    # --- Tag-Verwaltung ---
+
+    def add_tag(self, result_id: str, tag: str) -> bool:
+        """Fügt ein Tag zu einem Ergebnis hinzu (persistente Speicherung)."""
+        tag = tag.strip()
+        if not tag:
+            return False
+        result = self.load_result(result_id)
+        if not result:
+            return False
+        if tag not in result.metadata.tags:
+            result.metadata.tags.append(tag)
+            return self.update_result(result)
+        return True
+
+    def remove_tag(self, result_id: str, tag: str) -> bool:
+        """Entfernt ein Tag von einem Ergebnis."""
+        result = self.load_result(result_id)
+        if not result:
+            return False
+        if tag in result.metadata.tags:
+            result.metadata.tags.remove(tag)
+            return self.update_result(result)
+        return True
+
+    def get_all_tags(self) -> List[str]:
+        """Gibt alle verwendeten Tags (dedupliziert) zurück."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute("SELECT tags FROM results WHERE tags IS NOT NULL")
+            all_tags = set()
+            for (tags_json,) in cursor.fetchall():
+                try:
+                    for tag in json.loads(tags_json):
+                        all_tags.add(tag)
+                except (json.JSONDecodeError, TypeError):
+                    continue
+            return sorted(all_tags)
+
+    # --- Favoriten-Verwaltung ---
+
+    def set_favorite(self, result_id: str, is_favorite: bool) -> bool:
+        """Markiert ein Ergebnis als Favorit oder entfernt die Markierung."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute(
+                "UPDATE results SET is_favorite = ?, updated_at = ? WHERE id = ?",
+                (1 if is_favorite else 0, datetime.now().isoformat(), result_id)
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def toggle_favorite(self, result_id: str) -> bool:
+        """Schaltet die Favoriten-Markierung um und gibt den neuen Status zurück."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute(
+                "SELECT is_favorite FROM results WHERE id = ?", (result_id,)
+            )
+            row = cursor.fetchone()
+            if row is None:
+                return False
+            new_state = not bool(row[0])
+            self.set_favorite(result_id, new_state)
+            return new_state
+
+    def get_favorites(self) -> List[ResultSummary]:
+        """Gibt alle als Favorit markierten Ergebnisse zurück."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute("""
+                SELECT id, title, analysis_type, source_type, created_at,
+                       has_visualizations, has_exportable_data
+                FROM results WHERE is_favorite = 1
+                ORDER BY created_at DESC
+            """)
+            results = []
+            for row in cursor.fetchall():
+                results.append(ResultSummary(
+                    id=row[0],
+                    title=row[1],
+                    analysis_type=row[2],
+                    source_type=row[3] or "unknown",
+                    created_at=datetime.fromisoformat(row[4]),
+                    has_visualizations=bool(row[5]),
+                    has_exportable_data=bool(row[6])
+                ))
+            return results
+
+    # --- Batch-Export ---
+
+    def batch_export(self, result_ids: List[str], format: str = "json") -> Optional[str]:
+        """
+        Exportiert mehrere Ergebnisse in ein ZIP-Archiv.
+
+        Args:
+            result_ids: Liste der Ergebnis-IDs.
+            format: Exportformat ("json", "txt", "csv").
+
+        Returns:
+            Pfad zur ZIP-Datei, oder None bei Fehler.
+        """
+        if not result_ids:
+            return None
+
+        export_dir = self.results_dir / "exports"
+        export_dir.mkdir(exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        zip_path = export_dir / f"batch_export_{timestamp}.zip"
+
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            for rid in result_ids:
+                exported = self.export_result(rid, format=format)
+                if exported and os.path.exists(exported):
+                    zf.write(exported, os.path.basename(exported))
+
+        return str(zip_path)

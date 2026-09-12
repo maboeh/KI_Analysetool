@@ -4,6 +4,7 @@ youtube-transcript-api>=0.6.0
 beautifulsoup4>=4.12.0
 requests>=2.31.0
 reportlab>=4.0.0
+keyring>=25.0.0
 
 # Data processing dependencies (new)
 pandas>=2.0.0
@@ -12,6 +13,10 @@ openpyxl>=3.1.0
 # Image processing and OCR dependencies (new)
 pytesseract>=0.3.10
 Pillow>=10.0.0
+pdf2image>=1.16.0
+
+# CSV / text encoding detection
+chardet>=5.0.0
 
 # Visualization dependencies (new)
 matplotlib>=3.7.0

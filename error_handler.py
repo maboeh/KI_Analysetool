@@ -381,6 +381,12 @@ class ErrorHandler:
         # File format errors
         if "format" in error_message or "unsupported" in error_message:
             return self._get_error_info("UNSUPPORTED_FORMAT", context)
+
+        # File too large errors
+        if "too large" in error_message or "file size" in error_message or (
+            context and "file_size" in context
+        ):
+            return self._get_error_info("FILE_TOO_LARGE", context)
         
         # OCR errors
         if "tesseract" in error_message or "ocr" in error_message:

@@ -14,23 +14,31 @@ from enum import Enum
 import re
 
 try:
-    from data_models import Action as DataAction
+    from data_models import Action as DataAction, ActionType as ActionType
 except ImportError:
     DataAction = None
+    from enum import Enum
+    class ActionType(Enum):
+        SUMMARIZE = "zusammenfassen"
+        DEEPEN = "vertiefen"
+        TRANSLATE = "uebersetzen"
+        ANALYZE = "analysieren"
+        EXPLAIN = "einfach_erklären"
+        EXPORT = "exportieren"
+        VISUALIZE = "visualisieren"
+        VERGLEICHEN = "vergleichen"
+        CUSTOM = "custom"
+
+# Backward-kompatible Aliase für alte deutsche Member-Namen
+ActionType.ZUSAMMENFASSEN = ActionType.SUMMARIZE
+ActionType.VERTIEFEN = ActionType.DEEPEN
+ActionType.UEBERSETZEN = ActionType.TRANSLATE
+ActionType.ANALYSIEREN = ActionType.ANALYZE
+ActionType.ERKLAEREN = ActionType.EXPLAIN
+ActionType.EXPORTIEREN = ActionType.EXPORT
+ActionType.VISUALISIEREN = ActionType.VISUALIZE
 
 from help_tooltip import add_help_indicator
-
-
-class ActionType(Enum):
-    """Enumeration of available action types"""
-    ZUSAMMENFASSEN = "zusammenfassen"
-    VERTIEFEN = "vertiefen"
-    UEBERSETZEN = "uebersetzen"
-    ANALYSIEREN = "analysieren"
-    EXPORTIEREN = "exportieren"
-    VISUALISIEREN = "visualisieren"
-    VERGLEICHEN = "vergleichen"
-    CUSTOM = "custom"
 
 
 @dataclass
@@ -151,6 +159,12 @@ class ActionButtonsFrame(ttk.Frame):
                 label="Analysieren",
                 description="Führe eine spezifische Analyse durch",
                 callback=self._handle_analysieren
+            ),
+            ActionButton(
+                action_type=ActionType.ERKLAEREN,
+                label="Einfach erklären",
+                description="Erkläre den Inhalt verständlich für Anfänger",
+                callback=self._handle_explain
             )
         ]
         
@@ -258,6 +272,10 @@ class ActionButtonsFrame(ttk.Frame):
             elif action.action_type == ActionType.ANALYSIEREN:
                 # Enable if content has analyzable elements
                 action.enabled = self._has_analyzable_content(self.current_content)
+
+            elif action.action_type == ActionType.ERKLAEREN:
+                # Explain is always available when there is content
+                action.enabled = content_length > 10
         
         # Add dynamic actions based on content
         self._add_dynamic_actions()
@@ -523,6 +541,10 @@ class ActionButtonsFrame(ttk.Frame):
         """Handle analysis action"""
         # Show analysis type selection dialog
         self._show_analysis_dialog()
+
+    def _handle_explain(self):
+        """Handle explain simply action"""
+        self._execute_action("einfach_erklären")
     
     def _show_translation_dialog(self):
         """Show dialog for translation language selection"""

@@ -2,29 +2,39 @@ import tkinter as tk
 from tkinter import filedialog, ttk, scrolledtext
 from tkinter import messagebox
 import os
-import cProfile
 
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Spacer,Paragraph
+from reportlab.platypus import SimpleDocTemplate, Spacer, Paragraph
 from markdown_formatter import configure_markdown_tags, markdown_to_tkinter_text
 from help_tooltip import add_help_indicator
 
-
-from analysis import (extract_transkript, extract_text_from_website,
-                     text_extraction_youtube_website, real_ai_analyse_fortext,
-                     real_ai_analyse_forpdf)
+from analysis import (
+    text_extraction_youtube_website,
+    real_ai_analyse_fortext,
+    real_ai_analyse_forpdf,
+    is_pdf_file,
+    set_model,
+    get_model,
+    AVAILABLE_MODELS,
+)
 from config import check_api_key_exists, save_api_key, get_api_key
 
 
-class Gui():
-    def __init__(self,window):
+class Gui:
+    """Base GUI for the KI Analysetool application."""
+
+    # Identifier for each input tab. Subclasses can add more.
+    TAB_WEBSITE = "website"
+    TAB_YOUTUBE = "youtube"
+    TAB_PDF = "pdf"
+
+    def __init__(self, window):
         self.window = window
         self.window.title("KI Analysetool")
         self.window.geometry("1800x1000")
         self.window.minsize(1500, 850)
-
 
         if not check_api_key_exists():
             self.show_api_key_dialog()
@@ -32,6 +42,8 @@ class Gui():
         self.notes = []
         self.analyseResult = ""
         self.analysePath = ""
+        # Maps tab widget reference -> internal identifier.
+        self._tab_identifiers = {}
 
         self.setupGui()
 
@@ -90,7 +102,6 @@ class Gui():
         self.status_bar = ttk.Label(self.main_frame, textvariable=self.status_var, relief=tk.SUNKEN, anchor=tk.W)
         self.status_bar.pack(fill=tk.X, pady=(15, 0))
 
-
     def setupSourcesFrame(self):
         # Input-Source Frame (left side)
         self.sources_frame = ttk.LabelFrame(self.content_frame, text="Inhaltsquellen", padding=15)
@@ -104,10 +115,23 @@ class Gui():
         self.setupWebsiteTab()
         self.setupYoutubeTab()
         self.setupPdfTab()
+
+    def _register_tab(self, tab_widget, identifier):
+        """Register a tab widget with its internal identifier for robust routing."""
+        self._tab_identifiers[tab_widget] = identifier
+
+    def _get_current_tab_id(self):
+        """Return the internal identifier of the currently selected tab."""
+        selected = self.input_tabs.select()
+        if not selected:
+            return None
+        return self._tab_identifiers.get(selected)
+
     def setupWebsiteTab(self):
         # Website tab
         website_tab = ttk.Frame(self.input_tabs, padding=10)
         self.input_tabs.add(website_tab, text="Webseite")
+        self._register_tab(website_tab, self.TAB_WEBSITE)
 
         url_label_frame = ttk.Frame(website_tab)
         url_label_frame.pack(anchor=tk.W, pady=(0, 5))
@@ -122,10 +146,12 @@ class Gui():
         self.website_url = tk.StringVar()
         website_entry = ttk.Entry(website_frame, textvariable=self.website_url)
         website_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+
     def setupYoutubeTab(self):
         # YouTube tab
         youtube_tab = ttk.Frame(self.input_tabs, padding=10)
         self.input_tabs.add(youtube_tab, text="YouTube")
+        self._register_tab(youtube_tab, self.TAB_YOUTUBE)
 
         yt_label_frame = ttk.Frame(youtube_tab)
         yt_label_frame.pack(anchor=tk.W, pady=(0, 5))
@@ -140,10 +166,12 @@ class Gui():
         self.youtube_url = tk.StringVar()
         youtube_entry = ttk.Entry(youtube_frame, textvariable=self.youtube_url)
         youtube_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+
     def setupPdfTab(self):
         # PDF tab
         pdf_tab = ttk.Frame(self.input_tabs, padding=10)
         self.input_tabs.add(pdf_tab, text="PDF")
+        self._register_tab(pdf_tab, self.TAB_PDF)
 
         pdf_label_frame = ttk.Frame(pdf_tab)
         pdf_label_frame.pack(anchor=tk.W, pady=(0, 5))
@@ -184,6 +212,7 @@ class Gui():
 
         self.promptFrame()
         self.outPutArea()
+
     def promptFrame(self):
         # Question input
         prompt_label_frame = ttk.Frame(self.analysis_frame)
@@ -198,7 +227,7 @@ class Gui():
 
         combo_frame = ttk.Frame(self.analysis_frame)
         combo_frame.grid(row=2, column=0, sticky=tk.W + tk.E, pady=(0, 15))
-        
+
         self.combobox = ttk.Combobox(combo_frame,
                                 values=["Prompt senden", "Zusammenfassung", "Keyword-Extraktion", "Sentiment Analyse",
                                         "Themen-Erkennung"])
@@ -208,6 +237,28 @@ class Gui():
                           "Wählen Sie eine vordefinierte Analysemethode: "
                           "Zusammenfassung, Keyword-Extraktion, Sentiment-Analyse oder Themen-Erkennung. "
                           "Bei 'Prompt senden' wird Ihr eigener Prompt verwendet.")
+
+        # Model selection
+        model_frame = ttk.Frame(self.analysis_frame)
+        model_frame.grid(row=2, column=1, sticky=tk.E, pady=(0, 15), padx=(10, 0))
+        ttk.Label(model_frame, text="Modell:").pack(side=tk.LEFT)
+        self.model_var = tk.StringVar(value=get_model())
+        self.model_combobox = ttk.Combobox(
+            model_frame,
+            textvariable=self.model_var,
+            values=list(AVAILABLE_MODELS.keys()),
+            state="readonly",
+            width=18
+        )
+        self.model_combobox.pack(side=tk.LEFT)
+        self.model_combobox.bind("<<ComboboxSelected>>", self._on_model_changed)
+
+        add_help_indicator(
+            model_frame,
+            "Wählen Sie das OpenAI-Modell. GPT-4o ist die beste Wahl für die meisten Analysen. "
+            "GPT-4o mini ist günstiger und schneller für kurze Texte. "
+            "GPT-4 Turbo ist am leistungsfähigsten, aber teurer."
+        )
 
         question_btn_frame = ttk.Frame(self.analysis_frame)
         question_btn_frame.grid(row=3, column=0, sticky=tk.W + tk.E, pady=(0, 15))
@@ -219,6 +270,7 @@ class Gui():
         # Separator
         separator = ttk.Separator(self.analysis_frame, orient=tk.HORIZONTAL)
         separator.grid(row=4, column=0, sticky=tk.W + tk.E, pady=10)
+
     def outPutArea(self):
         # Output area
         ttk.Label(self.analysis_frame, text="Ergebnisse:").grid(row=5, column=0, sticky=tk.W)
@@ -250,8 +302,16 @@ class Gui():
 
     # Funktionen
 
-    def profile_function(self):
-        cProfile.run('self.send_question()', os.path.join(os.getcwd(), 'profile.txt'), sortby='time')
+    def _on_model_changed(self, event=None):
+        """Handle model selection changes."""
+        selected = self.model_var.get()
+        if selected in AVAILABLE_MODELS:
+            set_model(selected)
+            info = AVAILABLE_MODELS[selected]
+            self.status_var.set(
+                f"Modell: {info['name']} | Eingabe ${info['cost_per_1k_input']:.4f} / 1k | "
+                f"Ausgabe ${info['cost_per_1k_output']:.4f} / 1k"
+            )
 
     def pdf_file_choose(self):
         file_path = filedialog.askopenfilename(filetypes=[("PDF-Dateien", "*.pdf")])
@@ -260,67 +320,91 @@ class Gui():
             self.pdf_entry.insert(0, file_path)
             self.pdf_path_var.set(file_path)  # Update the path label
 
+    def _extract_content(self, tab_id):
+        """Extract content and source information for a given tab identifier."""
+        if tab_id == self.TAB_WEBSITE:
+            url = self.website_url.get().strip()
+            if not url:
+                raise ValueError("Bitte geben Sie eine Webseiten-URL ein.")
+            content = text_extraction_youtube_website(url)
+            return content, url, "website"
+
+        if tab_id == self.TAB_YOUTUBE:
+            url = self.youtube_url.get().strip()
+            if not url:
+                raise ValueError("Bitte geben Sie einen YouTube-Link ein.")
+            content = text_extraction_youtube_website(url)
+            return content, url, "youtube"
+
+        if tab_id == self.TAB_PDF:
+            # Prefer the uploaded file path, fall back to the URL field.
+            pdf_path = self.pdf_path_var.get().strip() or self.pdf_url.get().strip()
+            if not pdf_path:
+                raise ValueError("Bitte geben Sie eine PDF-URL ein oder laden Sie eine PDF-Datei hoch.")
+            # Validate local PDF paths before processing.
+            from analysis import is_pdf_file
+            if not pdf_path.lower().startswith(("http://", "https://")):
+                if not os.path.isfile(pdf_path) or not is_pdf_file(pdf_path):
+                    raise ValueError("Bitte wählen Sie eine gültige PDF-Datei aus.")
+            # For local PDFs, the content extraction is handled by real_ai_analyse_forpdf.
+            return pdf_path, pdf_path, "pdf"
+
+        raise ValueError(f"Unbekannter Tab: {tab_id}")
+
     def start_analyse(self):
+        """Extract the content from the currently selected input tab."""
+        tab_id = self._get_current_tab_id()
+        if not tab_id:
+            raise ValueError("Kein Eingabe-Tab ausgewählt.")
 
+        content, source_path, source_type = self._extract_content(tab_id)
+        self.analyseResult = content
+        self.analysePath = source_path
+        return content, source_path, source_type
 
-        # Get path from the currently selected tab
-        tab_id = self.input_tabs.select()
-        tab_index = self.input_tabs.index(tab_id)
-
-        if tab_index == 0:  # Website tab
-            self.analysePath = self.website_url.get()
-            self.analyseResult = text_extraction_youtube_website(self.analysePath)
-            return self.analyseResult, self.analysePath
-        elif tab_index == 1:  # YouTube tab
-            self.analysePath = self.youtube_url.get()
-            self.analyseResult = text_extraction_youtube_website(self.analysePath)
-            return self.analyseResult, self.analysePath
-        elif tab_index == 2:  # PDF tab
-            self.analysePath = self.pdf_url.get()
-            self.analyseResult = self.pdf_path_var.get()
-            return self.analyseResult
-
-    def get_prompt(self,content):
-
+    def get_prompt(self, content):
         value = self.combobox.get()
         if value == "Zusammenfassung":
-            question = "Fasse den Text zusammen:{text}"
-            return question
+            return "Fasse den Text zusammen: {text}".format(text=content)
         elif value == "Keyword-Extraktion":
-            question = "Extrahiere Schlüsselwörter aus diesem Text: {text}".format(text=content)
-            return question
+            return "Extrahiere Schlüsselwörter aus diesem Text: {text}".format(text=content)
         elif value == "Sentiment Analyse":
-            question = "Analysiere die Stimmung und den Tonfall dieses Textes: {text}".format(text=content)
-            return question
+            return "Analysiere die Stimmung und den Tonfall dieses Textes: {text}".format(text=content)
         elif value == "Themen-Erkennung":
-            question = "Erkenne die Hauptthemen des nachfolgendes Textes: {text}".format(text=content)
-            return question
+            return "Erkenne die Hauptthemen des nachfolgendes Textes: {text}".format(text=content)
         else:
             question_prompt = self.question_text.get(1.0, tk.END).strip()
-            # Format the custom prompt with the content
-            prompt_template = f"{question_prompt} {{text}}".format(text=content)
-            return prompt_template
+            if "{text}" in question_prompt:
+                return question_prompt.replace("{text}", content)
+            return f"{question_prompt}\n\n{content}"
 
     def send_question(self):
-        self.start_analyse()  # texte oder pdf_url extrahieren
-        content = self.analyseResult  # ergebnis der extraktion in content speichern
+        content, source_path, source_type = self.start_analyse()
         prompt = self.get_prompt(content)
 
-        if "http" in self.analysePath.lower() or "youtu" in self.analysePath.lower():
-            combined_text = prompt.format(text=content)
-            result_analysis = real_ai_analyse_fortext(combined_text)
-
-        else:
+        if source_type == "pdf":
             result_analysis = real_ai_analyse_forpdf(content, prompt)
-
+        else:
+            combined_text = prompt
+            result_analysis = real_ai_analyse_fortext(combined_text)
 
         self.output_text.config(state=tk.NORMAL)
         self.output_text.delete(1.0, tk.END)
         markdown_to_tkinter_text(result_analysis, self.output_text)
         self.output_text.config(state=tk.DISABLED)
 
+        # Show estimated cost/token usage in the status bar
+        try:
+            from analysis import get_usage_stats
+            stats = get_usage_stats()
+            self.status_var.set(
+                f"Analyse abgeschlossen | Gesamtkosten bisher: ${stats['total_cost']:.4f} "
+                f"({stats['total_tokens']:,} Tokens)"
+            )
+        except Exception:
+            self.status_var.set("Analyse abgeschlossen")
+
     def save_note(self):
-        self.notes
         note = self.output_text.get(1.0, tk.END).strip()
 
         if note:
@@ -328,7 +412,6 @@ class Gui():
             self.status_var.set("Notiz gespeichert")
         else:
             self.status_var.set("Kein Text zum Speichern gefunden")
-
 
     def export_notes_as_pdf(self):
         self.save_note()

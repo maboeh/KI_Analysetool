@@ -11,14 +11,14 @@ import os
 from pathlib import Path
 
 def check_python_version():
-    """Check if Python version is 3.8 or higher."""
+    """Check if Python version is 3.11 or higher."""
     print("🔍 Checking Python version...")
     version = sys.version_info
-    if version.major == 3 and version.minor >= 8:
+    if version.major == 3 and version.minor >= 11:
         print(f"✅ Python {version.major}.{version.minor}.{version.micro} - OK")
         return True
     else:
-        print(f"❌ Python {version.major}.{version.minor}.{version.micro} - Requires Python 3.8+")
+        print(f"❌ Python {version.major}.{version.minor}.{version.micro} - Requires Python 3.11+")
         return False
 
 def check_package_import(package_name, import_name=None):
@@ -72,6 +72,23 @@ def check_matplotlib_backend():
         print(f"❌ matplotlib Tkinter backend failed: {e}")
         print("   Try: pip install matplotlib[tk]")
         return False
+
+def check_gui_instantiation():
+    """Check if the enhanced GUI can be instantiated."""
+    print("🔍 Checking GUI instantiation...")
+    try:
+        import tkinter as tk
+        from enhanced_gui_integration_final import EnhancedGui
+        root = tk.Tk()
+        root.withdraw()
+        app = EnhancedGui(root)
+        root.destroy()
+        print("✅ Enhanced GUI instantiation - OK")
+        return True
+    except Exception as e:
+        print(f"❌ Enhanced GUI instantiation failed: {e}")
+        return False
+
 
 def check_config_file():
     """Check if configuration file exists."""
@@ -141,7 +158,12 @@ def main():
     print("\n🖼️  Checking image processing dependencies...")
     checks.append(("pytesseract", lambda: check_package_import("pytesseract")))
     checks.append(("Pillow", lambda: check_package_import("Pillow", "PIL")))
-    
+    checks.append(("pdf2image", lambda: check_package_import("pdf2image")))
+
+    # Text/CSV encoding detection
+    print("\n🔤 Checking encoding detection...")
+    checks.append(("chardet", lambda: check_package_import("chardet")))
+
     # Visualization dependencies
     print("\n📈 Checking visualization dependencies...")
     checks.append(("matplotlib", lambda: check_package_import("matplotlib")))
@@ -151,11 +173,23 @@ def main():
     print("\n🔧 Checking additional utilities...")
     checks.append(("python-dateutil", lambda: check_package_import("python-dateutil", "dateutil")))
     checks.append(("regex", lambda: check_package_import("regex")))
-    
+    checks.append(("keyring", lambda: check_package_import("keyring")))
+
+    # Internal learning/help modules
+    print("\n🎓 Checking learning and help modules...")
+    checks.append(("user_profile", lambda: check_package_import("user_profile")))
+    checks.append(("learning_path", lambda: check_package_import("learning_path")))
+    checks.append(("prompt_library", lambda: check_package_import("prompt_library")))
+    checks.append(("help_tooltip", lambda: check_package_import("help_tooltip")))
+
     # External dependencies
     print("\n🔧 Checking external dependencies...")
     checks.append(("Tesseract OCR", check_tesseract))
     checks.append(("matplotlib backend", check_matplotlib_backend))
+
+    # GUI instantiation
+    print("\n🖥️  Checking GUI instantiation...")
+    checks.append(("Enhanced GUI", check_gui_instantiation))
     
     # Configuration
     print("\n⚙️  Checking configuration...")

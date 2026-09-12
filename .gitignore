@@ -1,5 +1,6 @@
 /config_dir/
 /.idea/
+/.venv/
 config.ini
 .idea/
 __pycache__/
@@ -12,3 +13,5 @@ results/
 exports/
 analysis_history/
 profile.txt
+backups/
+logs/

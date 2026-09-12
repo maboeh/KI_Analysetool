@@ -55,27 +55,31 @@ class ExcelHandler:
     def get_file_info(self, file_path: str) -> ExcelFileInfo:
         """Get comprehensive information about the Excel file."""
         context = {"operation": "file_processing", "file_path": file_path, "file_type": "excel"}
-        
+
+        # Datei-Existenz zuerst prüfen (vor Format-Check)
+        if not os.path.exists(file_path):
+            error_result = self.error_handler.handle_error(
+                FileNotFoundError(f"Datei nicht gefunden: {file_path}"),
+                context=context
+            )
+            raise FileNotFoundError(self.error_handler.create_user_friendly_message(error_result))
+
         if not self.can_handle(file_path):
             error_result = self.error_handler.handle_error(
-                ValueError("Unsupported file format"), 
+                ValueError("Unsupported file format"),
                 context=context
             )
             raise ValueError(self.error_handler.create_user_friendly_message(error_result))
-        
+
         # Check file size
-        try:
-            file_size = os.path.getsize(file_path)
-            if file_size > self.MAX_FILE_SIZE_MB * 1024 * 1024:
-                context["file_size"] = file_size
-                error_result = self.error_handler.handle_error(
-                    ValueError("File too large"), 
-                    context=context
-                )
-                raise ValueError(self.error_handler.create_user_friendly_message(error_result))
-        except FileNotFoundError as e:
-            error_result = self.error_handler.handle_error(e, context=context)
-            raise FileNotFoundError(self.error_handler.create_user_friendly_message(error_result))
+        file_size = os.path.getsize(file_path)
+        if file_size > self.MAX_FILE_SIZE_MB * 1024 * 1024:
+            context["file_size"] = file_size
+            error_result = self.error_handler.handle_error(
+                ValueError("File too large"),
+                context=context
+            )
+            raise ValueError(self.error_handler.create_user_friendly_message(error_result))
         
         try:
             # Read Excel file to get sheet names

@@ -18,6 +18,7 @@ from excel_exporter import (
     validate_export_data
 )
 from data_models import ProcessedResult, StructuredData
+from help_tooltip import add_help_indicator
 
 
 @dataclass
@@ -198,9 +199,13 @@ class ExcelExportDialog(tk.Toplevel):
         self.file_path_entry = ttk.Entry(path_entry_frame, textvariable=self.file_path_var)
         self.file_path_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
         
-        browse_btn = ttk.Button(path_entry_frame, text="Durchsuchen...",
+        browse_frame = ttk.Frame(path_entry_frame)
+        browse_frame.pack(side=tk.RIGHT, padx=(5, 0))
+        browse_btn = ttk.Button(browse_frame, text="Durchsuchen...",
                                command=self._browse_file)
-        browse_btn.pack(side=tk.RIGHT, padx=(5, 0))
+        browse_btn.pack(side=tk.LEFT)
+        add_help_indicator(browse_frame,
+                          "Öffnet einen Datei-Dialog zur Auswahl des Speicherorts für die Excel-Datei.")
         
         # Auto-generate filename option
         self.auto_filename_var = tk.BooleanVar(value=True)
@@ -247,14 +252,22 @@ class ExcelExportDialog(tk.Toplevel):
         button_frame.pack(fill=tk.X, pady=(10, 0))
         
         # Export button
-        self.export_btn = ttk.Button(button_frame, text="Exportieren",
+        export_frame = ttk.Frame(button_frame)
+        export_frame.pack(side=tk.RIGHT, padx=(5, 0))
+        self.export_btn = ttk.Button(export_frame, text="Exportieren",
                                     command=self._export_data)
-        self.export_btn.pack(side=tk.RIGHT, padx=(5, 0))
+        self.export_btn.pack(side=tk.LEFT)
+        add_help_indicator(export_frame,
+                          "Startet den Excel-Export mit den ausgewählten Optionen und speichert die Datei am angegebenen Speicherort.")
         
         # Cancel button
-        cancel_btn = ttk.Button(button_frame, text="Abbrechen",
+        cancel_frame = ttk.Frame(button_frame)
+        cancel_frame.pack(side=tk.RIGHT)
+        cancel_btn = ttk.Button(cancel_frame, text="Abbrechen",
                                command=self.destroy)
-        cancel_btn.pack(side=tk.RIGHT)
+        cancel_btn.pack(side=tk.LEFT)
+        add_help_indicator(cancel_frame,
+                          "Bricht den Export-Dialog ab, ohne eine Datei zu erstellen.")
         
         # Preview refresh button
         refresh_btn = ttk.Button(button_frame, text="Vorschau aktualisieren",
@@ -415,10 +428,12 @@ class ExcelExportDialog(tk.Toplevel):
                     try:
                         os.startfile(file_path)  # Windows
                     except AttributeError:
-                        try:
-                            os.system(f'open "{file_path}"')  # macOS
-                        except:
-                            os.system(f'xdg-open "{file_path}"')  # Linux
+                        import subprocess
+                        import platform
+                        if platform.system() == "Darwin":
+                            subprocess.run(["open", file_path], check=False)
+                        else:
+                            subprocess.run(["xdg-open", file_path], check=False)
                     
                     message += "\n\nDie Datei wird geöffnet..."
                 

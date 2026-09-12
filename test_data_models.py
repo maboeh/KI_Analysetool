@@ -23,10 +23,13 @@ class TestEnums(unittest.TestCase):
         """Test ActionType enum values."""
         self.assertEqual(ActionType.SUMMARIZE.value, "zusammenfassen")
         self.assertEqual(ActionType.DEEPEN.value, "vertiefen")
-        self.assertEqual(ActionType.TRANSLATE.value, "übersetzen")
+        self.assertEqual(ActionType.TRANSLATE.value, "uebersetzen")
         self.assertEqual(ActionType.ANALYZE.value, "analysieren")
         self.assertEqual(ActionType.EXPORT.value, "exportieren")
         self.assertEqual(ActionType.VISUALIZE.value, "visualisieren")
+        # Neue Member
+        self.assertEqual(ActionType.VERGLEICHEN.value, "vergleichen")
+        self.assertEqual(ActionType.CUSTOM.value, "custom")
     
     def test_chart_type_enum(self):
         """Test ChartType enum values."""
@@ -35,7 +38,8 @@ class TestEnums(unittest.TestCase):
         self.assertEqual(ChartType.PIE.value, "pie")
         self.assertEqual(ChartType.SCATTER.value, "scatter")
         self.assertEqual(ChartType.HISTOGRAM.value, "histogram")
-        self.assertEqual(ChartType.HEATMAP.value, "heatmap")
+        # HEATMAP wurde entfernt (war nicht implementiert)
+        self.assertFalse(hasattr(ChartType, 'HEATMAP'))
     
     def test_entity_type_enum(self):
         """Test EntityType enum values."""
@@ -356,7 +360,7 @@ class TestAction(unittest.TestCase):
         
         action_dict = action.to_dict()
         
-        self.assertEqual(action_dict['action_type'], 'übersetzen')
+        self.assertEqual(action_dict['action_type'], 'uebersetzen')
         self.assertEqual(action_dict['label'], 'Übersetzen')
         self.assertEqual(action_dict['enabled'], True)
 
@@ -401,10 +405,12 @@ class TestProcessedResult(unittest.TestCase):
     
     def test_processed_result_methods(self):
         """Test ProcessedResult utility methods."""
+        import time
         result = ProcessedResult()
-        
+
         # Test timestamp update
         original_time = result.updated_at
+        time.sleep(0.01)
         result.update_timestamp()
         self.assertGreater(result.updated_at, original_time)
         

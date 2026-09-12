@@ -75,6 +75,7 @@ class FollowUpActionExecutor:
             ActionType.DEEPEN: self._execute_deepen,
             ActionType.TRANSLATE: self._execute_translate,
             ActionType.ANALYZE: self._execute_analyze,
+            ActionType.EXPLAIN: self._execute_explain,
             ActionType.EXPORT: self._execute_export,
             ActionType.VISUALIZE: self._execute_visualize
         }
@@ -215,6 +216,26 @@ class FollowUpActionExecutor:
             raw_result, result, action, context, "custom_analysis"
         )
     
+    def _execute_explain(
+        self,
+        result: ProcessedResult,
+        action: Action,
+        context: AnalysisContext
+    ) -> ProcessedResult:
+        """Execute explain-simply action."""
+        audience = action.parameters.get('audience', 'Anfänger')
+
+        prompt = (
+            f"Erkläre den folgenden Text so einfach wie möglich für {audience}. "
+            f"Vermeide Fachjargon oder erkläre unbekannte Begriffe kurz:\n\n{result.content}"
+        )
+
+        raw_result = analysis.real_ai_analyse_fortext(prompt)
+
+        return self._create_follow_up_result(
+            raw_result, result, action, context, "simple_explanation"
+        )
+
     def _execute_export(
         self, 
         result: ProcessedResult, 

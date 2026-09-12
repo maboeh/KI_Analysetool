@@ -252,8 +252,8 @@ class ChartGenerator:
             Visualization object containing the generated chart
         """
         context = {
-            "operation": "visualization", 
-            "chart_type": chart_type.value if chart_type else "unknown",
+            "operation": "visualization",
+            "chart_type": chart_type.value if hasattr(chart_type, 'value') else (str(chart_type) if chart_type else "unknown"),
             "data_source": data_source
         }
         
@@ -309,6 +309,10 @@ class ChartGenerator:
             return visualization
             
         except Exception as e:
+            # If the exception already contains a user-friendly message (starts with ❌),
+            # re-raise it directly to avoid double-processing
+            if str(e).startswith("❌"):
+                raise
             context["error_details"] = str(e)
             error_result = self.error_handler.handle_error(e, context=context)
             raise type(e)(self.error_handler.create_user_friendly_message(error_result))

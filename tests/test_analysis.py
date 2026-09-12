@@ -1,7 +1,9 @@
 
+import os
+import tempfile
 import unittest
 from unittest.mock import patch, MagicMock
-from analysis import extract_transkript
+from analysis import extract_transkript, text_extraction_youtube_website
 
 class TestAnalysis(unittest.TestCase):
     @patch('analysis.YouTubeTranscriptApi')
@@ -49,6 +51,19 @@ class TestAnalysis(unittest.TestCase):
         result = extract_transkript(url)
 
         self.assertEqual(result, "")
+
+    def test_binary_file_not_read_as_text(self):
+        """Non-text files must not be opened with text encoding."""
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
+            f.write(b"%PDF-1.4 fake pdf content")
+            path = f.name
+        try:
+            result = text_extraction_youtube_website(path)
+            self.assertIn("PDF", result)
+            self.assertNotIn("%PDF-1.4", result)
+        finally:
+            os.unlink(path)
+
 
 if __name__ == '__main__':
     unittest.main()

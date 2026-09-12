@@ -99,11 +99,15 @@ class ResultsBrowser:
         ).pack(side=tk.LEFT)
         
         # Statistics button
+        stats_frame = ttk.Frame(toolbar_frame)
+        stats_frame.pack(side=tk.RIGHT, padx=(5, 0))
         ttk.Button(
-            toolbar_frame,
+            stats_frame,
             text="📊 Statistiken",
             command=self._show_statistics
-        ).pack(side=tk.RIGHT, padx=(5, 0))
+        ).pack(side=tk.LEFT)
+        add_help_indicator(stats_frame,
+                          "Zeigt statistische Übersichten der gespeicherten Analyseergebnisse an.")
     
     def _create_filter_panel(self):
         """Create the filter panel with various filter options."""
@@ -244,25 +248,41 @@ class ResultsBrowser:
         button_frame = ttk.Frame(action_frame)
         button_frame.pack(side=tk.RIGHT)
         
+        open_frame = ttk.Frame(button_frame)
+        open_frame.pack(side=tk.LEFT, padx=(0, 5))
         self.open_button = ttk.Button(
-            button_frame, text="Öffnen", command=self._open_selected_result, state=tk.DISABLED
+            open_frame, text="Öffnen", command=self._open_selected_result, state=tk.DISABLED
         )
-        self.open_button.pack(side=tk.LEFT, padx=(0, 5))
+        self.open_button.pack(side=tk.LEFT)
+        add_help_indicator(open_frame,
+                          "Öffnet das ausgewählte Analyseergebnis zur Detailansicht.")
         
+        export_frame = ttk.Frame(button_frame)
+        export_frame.pack(side=tk.LEFT, padx=(0, 5))
         self.export_button = ttk.Button(
-            button_frame, text="Exportieren", command=self._export_selected_results, state=tk.DISABLED
+            export_frame, text="Exportieren", command=self._export_selected_results, state=tk.DISABLED
         )
-        self.export_button.pack(side=tk.LEFT, padx=(0, 5))
+        self.export_button.pack(side=tk.LEFT)
+        add_help_indicator(export_frame,
+                          "Exportiert die ausgewählten Ergebnisse in das gewünschte Format.")
         
+        compare_frame = ttk.Frame(button_frame)
+        compare_frame.pack(side=tk.LEFT, padx=(0, 5))
         self.compare_button = ttk.Button(
-            button_frame, text="Vergleichen", command=self._compare_selected_results, state=tk.DISABLED
+            compare_frame, text="Vergleichen", command=self._compare_selected_results, state=tk.DISABLED
         )
-        self.compare_button.pack(side=tk.LEFT, padx=(0, 5))
+        self.compare_button.pack(side=tk.LEFT)
+        add_help_indicator(compare_frame,
+                          "Vergleicht zwei oder mehr ausgewählte Ergebnisse miteinander.")
         
+        delete_frame = ttk.Frame(button_frame)
+        delete_frame.pack(side=tk.LEFT)
         self.delete_button = ttk.Button(
-            button_frame, text="Löschen", command=self._delete_selected_results, state=tk.DISABLED
+            delete_frame, text="Löschen", command=self._delete_selected_results, state=tk.DISABLED
         )
         self.delete_button.pack(side=tk.LEFT)
+        add_help_indicator(delete_frame,
+                          "Löscht die ausgewählten Analyseergebnisse endgültig aus der Datenbank.")
     
     def _create_statistics_panel(self):
         """Create statistics display panel (initially hidden)."""
@@ -363,6 +383,10 @@ class ResultsBrowser:
     def _refresh_results(self):
         """Refresh the results list."""
         self._load_results()
+
+    def refresh_results(self):
+        """Öffentliche Methode zum Aktualisieren der Ergebnisliste."""
+        self._refresh_results()
     
     def _clear_search(self):
         """Clear the search field."""

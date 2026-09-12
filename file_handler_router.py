@@ -418,7 +418,7 @@ class FileHandlerRouter:
     
     def get_handler(self, file_path: str):
         """Get appropriate handler for file - alias for get_handler_for_file"""
-        file_info = self.get_handler_info(file_path)
+        file_info = self.detect_file_type(file_path)
         if file_info.supported and file_info.file_type in self.handlers:
             return self.handlers[file_info.file_type]
         return None

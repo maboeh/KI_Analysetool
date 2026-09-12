@@ -404,7 +404,7 @@ class CSVHandler:
                 combined_data = pd.concat(dataframes, ignore_index=True, sort=False)
         
         return MultiFileResult(
-            files_processed=valid_files,
+            files_processed=[path for path in valid_files if path not in processing_summary.get('errors', [])],
             combined_data=combined_data,
             individual_results=individual_results,
             processing_summary=processing_summary

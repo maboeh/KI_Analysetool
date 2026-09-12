@@ -119,17 +119,25 @@ class DataVisualizationPanel:
         add_help_indicator(export_help_frame,
                           "Exportiert das aktuelle Diagramm als PNG-Bilddatei.")
         
+        pdf_export_frame = ttk.Frame(control_frame)
+        pdf_export_frame.pack(side=tk.LEFT, padx=2)
         ttk.Button(
-            control_frame,
+            pdf_export_frame,
             text="PDF exportieren", 
             command=lambda: self._export_chart('pdf')
-        ).pack(side=tk.LEFT, padx=2)
+        ).pack(side=tk.LEFT)
+        add_help_indicator(pdf_export_frame,
+                          "Exportiert das aktuelle Diagramm als PDF-Datei für Druck oder Dokumentation.")
         
+        svg_export_frame = ttk.Frame(control_frame)
+        svg_export_frame.pack(side=tk.LEFT, padx=2)
         ttk.Button(
-            control_frame,
+            svg_export_frame,
             text="SVG exportieren",
             command=lambda: self._export_chart('svg')
-        ).pack(side=tk.LEFT, padx=2)
+        ).pack(side=tk.LEFT)
+        add_help_indicator(svg_export_frame,
+                          "Exportiert das aktuelle Diagramm als SVG-Vektorgrafik für verlustfreie Skalierung.")
         
         # Separator
         ttk.Separator(control_frame, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=10)

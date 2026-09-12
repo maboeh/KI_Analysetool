@@ -51,17 +51,42 @@ class ExtendedInputTabs:
         self.excel_preview_data: Optional[Dict] = None
         self.image_preview_text: str = ""
         self.csv_preview_data: Optional[Dict] = None
-        
+
+        # Tab-Referenzen (für robuste Identifikation in get_current_content)
+        self.tab_frames: Dict[str, ttk.Frame] = {}
+
+        # State für direkte Texteingabe
+        self.direct_text_content: str = ""
+
         # Setup tabs
+        self.setup_text_tab()
         self.setup_excel_tab()
         self.setup_image_tab()
         self.setup_csv_tab()
         self.setup_multi_file_tab()
-    
+
+    def setup_text_tab(self):
+        """Tab für direkte Texteingabe (ohne Datei-Upload)."""
+        text_tab = ttk.Frame(self.parent_notebook, padding=10)
+        self.parent_notebook.add(text_tab, text="Text")
+        self.tab_frames['text'] = text_tab
+
+        label_frame = ttk.Frame(text_tab)
+        label_frame.pack(anchor=tk.W, pady=(0, 5))
+        ttk.Label(label_frame, text="Text direkt eingeben oder einfügen:").pack(side=tk.LEFT)
+        add_help_indicator(label_frame,
+                          "Geben Sie hier beliebigen Text direkt ein oder fügen Sie ihn aus der "
+                          "Zwischenablage ein (Strg+V). Dieser Text wird bei der Analyse verwendet.")
+
+        self.text_input = scrolledtext.ScrolledText(text_tab, height=18, wrap=tk.WORD,
+                                                    font=("Segoe UI", 10))
+        self.text_input.pack(fill=tk.BOTH, expand=True)
+
     def setup_excel_tab(self):
         """Setup Excel file upload tab with preview functionality."""
         excel_tab = ttk.Frame(self.parent_notebook, padding=10)
         self.parent_notebook.add(excel_tab, text="Excel")
+        self.tab_frames['excel'] = excel_tab
         
         # File selection section
         file_frame = ttk.LabelFrame(excel_tab, text="Excel-Datei auswählen", padding=10)
@@ -120,6 +145,7 @@ class ExtendedInputTabs:
         """Setup image upload tab with OCR preview."""
         image_tab = ttk.Frame(self.parent_notebook, padding=10)
         self.parent_notebook.add(image_tab, text="Bild/PDF")
+        self.tab_frames['image'] = image_tab
         
         # File selection section
         file_frame = ttk.LabelFrame(image_tab, text="Bild- oder PDF-Datei auswählen", padding=10)
@@ -187,6 +213,7 @@ class ExtendedInputTabs:
         """Setup CSV file upload tab with preview."""
         csv_tab = ttk.Frame(self.parent_notebook, padding=10)
         self.parent_notebook.add(csv_tab, text="CSV/Text")
+        self.tab_frames['csv'] = csv_tab
         
         # File selection section
         file_frame = ttk.LabelFrame(csv_tab, text="CSV/Text-Dateien auswählen", padding=10)
@@ -212,13 +239,21 @@ class ExtendedInputTabs:
                           "Fügen Sie CSV-, TSV- oder Text-Dateien zur Analyse hinzu. "
                           "Mehrere Dateien können ausgewählt und kombiniert werden.")
         
-        remove_csv_btn = ttk.Button(csv_btn_frame, text="Entfernen", 
+        remove_csv_frame = ttk.Frame(csv_btn_frame)
+        remove_csv_frame.pack(side=tk.LEFT, padx=(0, 5))
+        remove_csv_btn = ttk.Button(remove_csv_frame, text="Entfernen", 
                                    command=self.remove_csv_file)
-        remove_csv_btn.pack(side=tk.LEFT, padx=(0, 5))
+        remove_csv_btn.pack(side=tk.LEFT)
+        add_help_indicator(remove_csv_frame,
+                          "Entfernt die ausgewählte Datei aus der Liste.")
         
-        clear_csv_btn = ttk.Button(csv_btn_frame, text="Alle entfernen", 
+        clear_csv_frame = ttk.Frame(csv_btn_frame)
+        clear_csv_frame.pack(side=tk.LEFT)
+        clear_csv_btn = ttk.Button(clear_csv_frame, text="Alle entfernen", 
                                   command=self.clear_csv_files)
         clear_csv_btn.pack(side=tk.LEFT)
+        add_help_indicator(clear_csv_frame,
+                          "Entfernt alle Dateien aus der Liste.")
         
         # Processing options
         options_frame = ttk.LabelFrame(csv_tab, text="Verarbeitungsoptionen", padding=10)
@@ -254,6 +289,7 @@ class ExtendedInputTabs:
         """Setup multi-file selection tab with drag-and-drop support."""
         multi_tab = ttk.Frame(self.parent_notebook, padding=10)
         self.parent_notebook.add(multi_tab, text="Multi-Datei")
+        self.tab_frames['multi'] = multi_tab
         
         # Instructions
         instructions = ttk.Label(multi_tab, 
@@ -291,13 +327,21 @@ class ExtendedInputTabs:
                           "Fügen Sie mehrere Dateien verschiedener Formate hinzu. "
                           "Unterstützt werden Excel, Bilder/PDF, CSV und Textdateien.")
         
-        remove_multi_btn = ttk.Button(multi_btn_frame, text="Entfernen", 
+        remove_multi_frame = ttk.Frame(multi_btn_frame)
+        remove_multi_frame.pack(side=tk.LEFT, padx=(0, 5))
+        remove_multi_btn = ttk.Button(remove_multi_frame, text="Entfernen", 
                                      command=self.remove_selected_file)
-        remove_multi_btn.pack(side=tk.LEFT, padx=(0, 5))
+        remove_multi_btn.pack(side=tk.LEFT)
+        add_help_indicator(remove_multi_frame,
+                          "Entfernt die ausgewählte Datei aus der Liste.")
         
-        clear_multi_btn = ttk.Button(multi_btn_frame, text="Alle entfernen", 
+        clear_multi_frame = ttk.Frame(multi_btn_frame)
+        clear_multi_frame.pack(side=tk.LEFT, padx=(0, 5))
+        clear_multi_btn = ttk.Button(clear_multi_frame, text="Alle entfernen", 
                                     command=self.clear_all_files)
-        clear_multi_btn.pack(side=tk.LEFT, padx=(0, 5))
+        clear_multi_btn.pack(side=tk.LEFT)
+        add_help_indicator(clear_multi_frame,
+                          "Entfernt alle Dateien aus der Liste.")
         
         analyze_btn = ttk.Button(multi_btn_frame, text="Dateien analysieren", 
                                 command=self.analyze_selected_files)
@@ -786,48 +830,53 @@ class ExtendedInputTabs:
     def get_current_content(self) -> Optional[str]:
         """
         Get content from currently selected tab for analysis.
-        
+
+        Identifiziert den aktiven Tab per Referenz (robust gegenüber
+        Reihenfolge-Änderungen im Notebook).
+
         Returns:
             Content string ready for analysis, or None if no content available
         """
         if not self.file_router:
             return None
-        
-        # Get currently selected tab
-        current_tab = self.parent_notebook.select()
-        tab_index = self.parent_notebook.index(current_tab)
-        
-        # Map tab indices to our extended tabs (assuming they're added after existing tabs)
-        # This would need to be adjusted based on the actual tab order in the main GUI
-        extended_tab_offset = 3  # Assuming 3 existing tabs (Website, YouTube, PDF)
-        
+
+        # Aktuell ausgewählten Tab ermitteln
+        current_tab_id = self.parent_notebook.select()
+        if not current_tab_id:
+            return None
+        current_tab = self.parent_notebook.nametowidget(current_tab_id)
+
         try:
-            if tab_index == extended_tab_offset:  # Excel tab
+            if current_tab is self.tab_frames.get('text'):
+                content = self.text_input.get(1.0, tk.END).strip()
+                return content if content else None
+
+            elif current_tab is self.tab_frames.get('excel'):
                 if self.current_excel_file:
                     sheet_name = self.excel_sheet_var.get() or None
                     excel_handler = self.file_router.handlers.get('excel')
                     return excel_handler.extract_content_for_analysis(self.current_excel_file, sheet_name)
-            
-            elif tab_index == extended_tab_offset + 1:  # Image tab
+
+            elif current_tab is self.tab_frames.get('image'):
                 if self.current_image_file:
                     language = self.ocr_language_var.get()
                     image_handler = self.file_router.handlers.get('image')
                     return image_handler.extract_content_for_analysis(self.current_image_file, language)
-            
-            elif tab_index == extended_tab_offset + 2:  # CSV tab
+
+            elif current_tab is self.tab_frames.get('csv'):
                 if self.current_csv_files:
                     combine_method = self.csv_combine_var.get()
                     csv_handler = self.file_router.handlers.get('csv')
                     return csv_handler.extract_combined_content_for_analysis(self.current_csv_files, combine_method)
-            
-            elif tab_index == extended_tab_offset + 3:  # Multi-file tab
+
+            elif current_tab is self.tab_frames.get('multi'):
                 if self.selected_files:
                     return self.file_router.get_analysis_content(self.selected_files)
-        
+
         except Exception as e:
             logging.error(f"Error getting content from extended tabs: {e}")
             return f"Fehler beim Extrahieren des Inhalts: {str(e)}"
-        
+
         return None
     
     def get_handler_info(self) -> Dict[str, Any]:

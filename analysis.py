@@ -1,11 +1,10 @@
 import os
 import time
 import logging
-from urllib.parse import urlparse
-import ipaddress
+from urllib.parse import urlparse, parse_qs
 
-import requests
-from bs4 import BeautifulSoup
+from openai import OpenAI
+from openai import RateLimitError, APIConnectionError, APITimeoutError, APIError
 
 from config import get_api_key
 
@@ -20,40 +19,75 @@ AVAILABLE_MODELS = {
 
 DEFAULT_MODEL = "gpt-4o"
 
-current_model = DEFAULT_MODEL
-total_tokens_used = 0
-total_cost_estimate = 0.0
+
+class AnalysisSession:
+    """
+    Encapsulates per-session analysis state: chosen model, token usage and cost.
+    Replaces the previous module-level global variables so the code is testable
+    and thread-state is explicit.
+    """
+
+    def __init__(self, model: str = DEFAULT_MODEL):
+        self._model = model if model in AVAILABLE_MODELS else DEFAULT_MODEL
+        self.total_tokens_used = 0
+        self.total_cost_estimate = 0.0
+
+    @property
+    def current_model(self) -> str:
+        return self._model
+
+    def set_model(self, model: str):
+        if model in AVAILABLE_MODELS:
+            self._model = model
+            logger.info("Modell gewechselt auf: %s", model)
+        else:
+            logger.warning("Unbekanntes Modell: %s, behalte %s", model, self._model)
+
+    def get_model(self) -> str:
+        return self._model
+
+    def get_usage_stats(self) -> dict:
+        return {
+            "total_tokens": self.total_tokens_used,
+            "total_cost": round(self.total_cost_estimate, 4),
+            "model": self._model,
+        }
+
+    def reset_usage_stats(self):
+        self.total_tokens_used = 0
+        self.total_cost_estimate = 0.0
+
+    def record_usage(self, prompt_tokens: int, completion_tokens: int):
+        self.total_tokens_used += prompt_tokens + completion_tokens
+        model_info = AVAILABLE_MODELS.get(self._model, AVAILABLE_MODELS[DEFAULT_MODEL])
+        self.total_cost_estimate += (
+            prompt_tokens * model_info["cost_per_1k_input"] / 1000 +
+            completion_tokens * model_info["cost_per_1k_output"] / 1000
+        )
+
+
+# Default session for backward-compatible module-level functions.
+_default_session = AnalysisSession()
 
 
 def set_model(model: str):
     """Setzt das aktuell verwendete Modell."""
-    global current_model
-    if model in AVAILABLE_MODELS:
-        current_model = model
-        logger.info(f"Modell gewechselt auf: {model}")
-    else:
-        logger.warning(f"Unbekanntes Modell: {model}, behalte {current_model}")
+    _default_session.set_model(model)
 
 
 def get_model() -> str:
     """Gibt das aktuell verwendete Modell zurück."""
-    return current_model
+    return _default_session.get_model()
 
 
 def get_usage_stats() -> dict:
     """Gibt Token/Cost-Tracking-Daten zurück."""
-    return {
-        "total_tokens": total_tokens_used,
-        "total_cost": round(total_cost_estimate, 4),
-        "model": current_model,
-    }
+    return _default_session.get_usage_stats()
 
 
 def reset_usage_stats():
     """Setzt Token/Cost-Tracking zurück."""
-    global total_tokens_used, total_cost_estimate
-    total_tokens_used = 0
-    total_cost_estimate = 0.0
+    _default_session.reset_usage_stats()
 
 
 def estimate_tokens(text: str) -> int:
@@ -63,15 +97,15 @@ def estimate_tokens(text: str) -> int:
 
 def validate_content_length(text: str, model: str = None) -> tuple:
     """Validiert, ob der Text innerhalb des Token-Limits des Modells liegt.
-    
+
     Returns:
         (is_valid, estimated_tokens, max_tokens, message)
     """
-    model = model or current_model
+    model = model or _default_session.current_model
     info = AVAILABLE_MODELS.get(model, AVAILABLE_MODELS[DEFAULT_MODEL])
     max_tokens = info["max_tokens"]
     estimated = estimate_tokens(text)
-    
+
     if estimated > max_tokens * 0.8:
         return (False, estimated, max_tokens,
                 f"Text ist zu lang: ~{estimated} Tokens (Limit: {max_tokens}). Bitte kürzen.")
@@ -79,70 +113,95 @@ def validate_content_length(text: str, model: str = None) -> tuple:
 
 
 def _retry_api_call(func, max_retries=3, base_delay=1.0):
-    """Führt einen API-Call mit Retry und exponential backoff aus."""
+    """Führt einen API-Call mit Retry und exponential backoff aus.
+
+    Retries werden nur für vorübergehende OpenAI-Fehler durchgeführt
+    (RateLimit, Timeout, Verbindungsfehler). Andere Fehler werden sofort
+    weitergegeben.
+    """
     last_error = None
     for attempt in range(max_retries):
         try:
             return func()
-        except Exception as e:
+        except (RateLimitError, APIConnectionError, APITimeoutError) as e:
             last_error = e
             if attempt < max_retries - 1:
                 delay = base_delay * (2 ** attempt)
-                logger.warning(f"API-Aufruf fehlgeschlagen (Versuch {attempt + 1}/{max_retries}): {e}. Retry in {delay}s")
+                logger.warning(
+                    "API-Aufruf fehlgeschlagen (Versuch %d/%d): %s. Retry in %.1fs",
+                    attempt + 1, max_retries, type(e).__name__, delay
+                )
                 time.sleep(delay)
             else:
-                logger.error(f"API-Aufruf nach {max_retries} Versuchen endgültig fehlgeschlagen: {e}")
+                logger.error(
+                    "API-Aufruf nach %d Versuchen endgültig fehlgeschlagen: %s",
+                    max_retries, type(e).__name__
+                )
+        except Exception:
+            # Non-retryable errors are raised immediately.
+            raise
     raise last_error
 
 
-
-
-
 def is_pdf_file(filepath):
+    if not filepath:
+        return False
     _, fileextension = os.path.splitext(filepath)
     return fileextension.lower() == ".pdf"
 
+
 def is_safe_url(url):
     """Validiert eine URL: nur http/https, keine internen/private IPs."""
+    from security import validate_url, SecurityException
     try:
-        parsed = urlparse(url)
+        validate_url(url)
+        return True
+    except SecurityException:
+        return False
     except Exception:
         return False
-    if parsed.scheme not in ("http", "https"):
-        return False
-    hostname = parsed.hostname
-    if not hostname:
-        return False
-    try:
-        ip = ipaddress.ip_address(hostname)
-        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
-            return False
-    except ValueError:
-        pass
-    blocked = {"localhost", "0.0.0.0", "metadata.google.internal"}
-    if hostname.lower() in blocked:
-        return False
-    return True
+
 
 def is_safe_filepath(filepath):
-    """Validiert einen Dateipfad: muss existieren und darf nicht außerhalb des Arbeitsverzeichnisses liegen."""
+    """Validiert einen Dateipfad: erlaubte Erweiterung und existiert."""
+    from security import validate_file_path, SecurityException
     if not filepath:
         return False
-    abs_path = os.path.abspath(filepath)
+    try:
+        validate_file_path(filepath)
+    except SecurityException:
+        return False
+
     allowed_extensions = {".txt", ".pdf", ".csv", ".xlsx", ".xls", ".png", ".jpg", ".jpeg"}
-    _, ext = os.path.splitext(abs_path)
+    _, ext = os.path.splitext(filepath)
     if ext.lower() not in allowed_extensions:
+        return False
+    if not os.path.isfile(filepath):
         return False
     return True
 
-def extract_transkript(youtubelink):
+
+try:
     from youtube_transcript_api import YouTubeTranscriptApi
-    if youtubelink.startswith("https://www.youtube.com/watch?v="):
-        video_id = youtubelink.split("v=")[1].split("&")[0]
-    elif youtubelink.startswith("https://youtu.be/"):
-        video_id = youtubelink.split("be/")[1].split("?")[0].split("&")[0]
-    else:
+except ImportError:
+    YouTubeTranscriptApi = None
+
+
+def extract_transkript(youtubelink):
+    if YouTubeTranscriptApi is None:
+        raise RuntimeError("YouTube-Transkript-API nicht verfügbar. Bitte youtube-transcript-api installieren.")
+
+    parsed = urlparse(youtubelink)
+    video_id = None
+
+    if parsed.hostname and parsed.hostname.lower() in ("www.youtube.com", "youtube.com"):
+        video_id = parse_qs(parsed.query).get("v", [None])[0]
+    elif parsed.hostname and parsed.hostname.lower() == "youtu.be":
+        video_id = parsed.path.strip("/").split("/")[0] if parsed.path else None
+
+    if not video_id:
         raise ValueError(f"Nicht unterstütztes YouTube-URL-Format: {youtubelink}")
+
     transkript = YouTubeTranscriptApi.get_transcript(video_id, languages=['de', 'en'])
     # Optimization: Use join for O(n) performance instead of O(n^2) loop concatenation
     if not transkript:
@@ -150,44 +209,73 @@ def extract_transkript(youtubelink):
     return " ".join(satz["text"] for satz in transkript) + " "
 
 
+def _extract_readable_text_from_html(html: str) -> str:
+    """Reduziert HTML auf lesbaren Haupttext (Navigation, Script, Style entfernt)."""
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(html, "html.parser")
+
+    # Remove non-content elements that often contain PII or noise.
+    for tag in soup(["script", "style", "nav", "footer", "header", "aside", "noscript"]):
+        tag.decompose()
+
+    # Try to prefer the main article/content area.
+    main = soup.find("main") or soup.find("article") or soup.find("div", role="main")
+    if main:
+        text = main.get_text(separator="\n", strip=True)
+    else:
+        text = soup.get_text(separator="\n", strip=True)
+
+    # Collapse multiple blank lines.
+    lines = [line for line in text.splitlines() if line.strip()]
+    return "\n".join(lines)
+
+
 def extract_text_from_website(url):
-    if not is_safe_url(url):
-        raise ValueError(f"URL nicht erlaubt oder unsicher: {url}")
-    response = requests.get(url, timeout=30)
-    response.raise_for_status()
-    soup = BeautifulSoup(response.text, "html.parser")
-    text = soup.get_text()
-    return text
-
-# TODO eigene funktionen für text und pdf <-- sieht wohl so aus dass ich d
+    from security import safe_requests_get, validate_url, SecurityException
+    validate_url(url)
+    response = safe_requests_get(url, timeout=15)
+    return _extract_readable_text_from_html(response.text)
 
 
-def text_extraction_youtube_website(filePath):
-    try:
+def text_extraction_youtube_website(file_path_or_url):
+    """Extrahiert Text aus YouTube-URLs, Webseiten-URLs oder lokalen Dateien."""
+    if not file_path_or_url:
+        return "Fehler: Keine Eingabe angegeben."
 
-        if "youtu" in filePath.lower():
-            transkript = extract_transkript(filePath)
-            return transkript
-        elif "http" in filePath.lower():
-            if not is_safe_url(filePath):
-                return "Fehler: URL nicht erlaubt oder unsicher"
-            text = extract_text_from_website(filePath)
-            return text
-        else:
-            if not is_safe_filepath(filePath):
-                return "Fehler: Dateityp nicht unterstützt oder Pfad ungültig"
+    if isinstance(file_path_or_url, str) and file_path_or_url.strip().lower().startswith(("http://", "https://")):
+        text = file_path_or_url.strip()
+        if "youtu" in text.lower():
             try:
-                with open(filePath, "r", encoding="utf-8") as file:
-                    filePath_string = file.read()
-                    return filePath_string
-            except UnicodeDecodeError:
-                with open(filePath, "r", encoding="latin-1") as file:
-                    filePath_string = file.read()
-                    return filePath_string
+                return extract_transkript(text)
+            except Exception as e:
+                return f"Fehler beim Extrahieren des YouTube-Transkripts: {e}"
+
+        if not is_safe_url(text):
+            return "Fehler: URL nicht erlaubt oder unsicher"
+        try:
+            return extract_text_from_website(text)
+        except Exception as e:
+            return f"Fehler beim Extrahieren der Webseite: {e}"
+
+    # Local file path
+    text_extensions = {".txt", ".md", ".csv", ".json", ".xml", ".html", ".htm", ".log", ".ini", ".py", ".js"}
+    binary_extensions = {".pdf", ".xlsx", ".xls", ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".doc", ".docx", ".ppt", ".pptx"}
+    ext = os.path.splitext(file_path_or_url)[1].lower()
+    if ext in binary_extensions:
+        return f"Fehler: Dateien vom Typ '{ext}' können hier nicht als Text gelesen werden. Bitte verwenden Sie den passenden Import-Tab (z. B. PDF, Excel, Bilder)."
+
+    if not is_safe_filepath(file_path_or_url):
+        return "Fehler: Dateityp nicht unterstützt oder Pfad ungültig"
+    try:
+        with open(file_path_or_url, "r", encoding="utf-8") as file:
+            return file.read()
+    except UnicodeDecodeError:
+        with open(file_path_or_url, "r", encoding="latin-1") as file:
+            return file.read()
     except FileNotFoundError:
         return "Fehler: Datei konnte nicht gefunden werden"
     except Exception as e:
-        return f"Ein Fehler ist aufgetreten: {str(e)}"
+        return f"Ein Fehler ist aufgetreten: {e}"
 
 
 def real_ai_analyse_fortext(text):
@@ -197,7 +285,6 @@ def real_ai_analyse_fortext(text):
             return f"Fehler: {msg}"
 
         api_key = get_api_key()
-
         if not api_key:
             return "Fehler: Kein API-Schlüssel verfügbar"
 
@@ -205,32 +292,36 @@ def real_ai_analyse_fortext(text):
 
         def _call():
             return client.chat.completions.create(
-                model=current_model,
-                messages=[
-                    {"role": "user",
-                    "content": text}]
+                model=_default_session.current_model,
+                messages=[{"role": "user", "content": text}]
             )
 
         response = _retry_api_call(_call)
 
-        global total_tokens_used, total_cost_estimate
         if hasattr(response, 'usage') and response.usage:
-            total_tokens_used += response.usage.total_tokens
-            model_info = AVAILABLE_MODELS.get(current_model, AVAILABLE_MODELS[DEFAULT_MODEL])
-            total_cost_estimate += (
-                response.usage.prompt_tokens * model_info["cost_per_1k_input"] / 1000 +
-                response.usage.completion_tokens * model_info["cost_per_1k_output"] / 1000
+            _default_session.record_usage(
+                response.usage.prompt_tokens,
+                response.usage.completion_tokens
             )
 
         return response.choices[0].message.content
 
     except Exception as e:
-        return f"Fehler bei der KI-Analyse: {str(e)}"
+        logger.exception("Fehler bei der KI-Analyse")
+        return f"Fehler bei der KI-Analyse: {e}"
 
 
 def real_ai_analyse_forpdf(pdf_path, prompt):
+    file = None
+    assistant = None
+    thread = None
+    client = None
     try:
-        from openai import OpenAI
+        if not is_pdf_file(pdf_path):
+            return "Fehler: Ungültiger PDF-Pfad. Bitte wählen Sie eine .pdf-Datei."
+        if not os.path.isfile(pdf_path):
+            return "Fehler: PDF-Datei nicht gefunden."
+
         api_key = get_api_key()
         if not api_key:
             return "Fehler: Kein API-Schlüssel verfügbar"
@@ -245,7 +336,7 @@ def real_ai_analyse_forpdf(pdf_path, prompt):
 
         def _create_assistant():
             return client.beta.assistants.create(
-                model=current_model,
+                model=_default_session.current_model,
                 instructions="Analyze the provided PDF document",
                 tools=[{"type": "file_search"}]
             )
@@ -256,13 +347,10 @@ def real_ai_analyse_forpdf(pdf_path, prompt):
         thread = client.beta.threads.create()
 
         # Create message with the PDF attached
-        message = client.beta.threads.messages.create(
+        client.beta.threads.messages.create(
             thread_id=thread.id,
             role="user",
-            content=[{
-                "type": "text",
-                "text": prompt
-            }],
+            content=[{"type": "text", "text": prompt}],
             attachments=[{
                 "file_id": file.id,
                 "tools": [{"type": "file_search"}]
@@ -278,22 +366,22 @@ def real_ai_analyse_forpdf(pdf_path, prompt):
         # Wait for completion
         max_wait = 120
         waited = 0
-        while run.status not in ["completed", "failed"]:
+        while run.status not in ["completed", "failed", "cancelled"]:
             run = client.beta.threads.runs.retrieve(
                 thread_id=thread.id,
                 run_id=run.id
             )
             if run.status == "failed":
                 return f"Error: {run.last_error}"
+            if run.status == "cancelled":
+                return "Error: PDF-Analyse wurde abgebrochen."
             time.sleep(1)
             waited += 1
             if waited >= max_wait:
                 return "Fehler: Zeitüberschreitung bei der PDF-Analyse"
 
         # Get the response
-        messages = client.beta.threads.messages.list(
-            thread_id=thread.id
-        )
+        messages = client.beta.threads.messages.list(thread_id=thread.id)
 
         # Return the assistant's response
         for message in messages.data:
@@ -303,19 +391,23 @@ def real_ai_analyse_forpdf(pdf_path, prompt):
         return "No response received"
 
     except Exception as e:
-        return f"Error analyzing PDF: {str(e)}"
+        logger.exception("Error analyzing PDF")
+        return f"Error analyzing PDF: {e}"
     finally:
+        if not client:
+            return
         try:
-            if 'file' in locals() and file:
+            if file:
                 client.files.delete(file.id)
-            if 'assistant' in locals() and assistant:
+        except Exception:
+            pass
+        try:
+            if assistant:
                 client.beta.assistants.delete(assistant.id)
         except Exception:
             pass
-
-
-
-
-
-
-
+        try:
+            if thread:
+                client.beta.threads.delete(thread.id)
+        except Exception:
+            pass

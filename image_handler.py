@@ -17,6 +17,7 @@ try:
     from PIL import Image, ImageEnhance, ImageFilter
     from pdf2image import convert_from_path
     DEPENDENCIES_AVAILABLE = True
+    IMPORT_ERROR = None
 except ImportError as e:
     DEPENDENCIES_AVAILABLE = False
     IMPORT_ERROR = str(e)

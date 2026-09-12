@@ -569,40 +569,48 @@ class ProgressManager:
                        cancel_callback: Optional[Callable] = None) -> str:
         """
         Start an operation with progress indication.
-        
+
         Returns:
             Operation ID for tracking
         """
         if indicator_name not in self.indicators:
             self.logger.warning(f"Progress indicator '{indicator_name}' not found")
             return ""
-        
-        operation_id = f"{indicator_name}_{int(time.time())}"
-        
+
+        operation_id = f"{indicator_name}::{int(time.time())}"
+
         indicator = self.indicators[indicator_name]
         indicator.start_operation(operation_type, operation_name, steps, cancel_callback)
-        
+
         self.active_operations[operation_id] = indicator.get_current_progress()
-        
+
         return operation_id
-    
-    def update_operation(self, operation_id: str, step_index: int, 
+
+    def _extract_indicator_name(self, operation_id: str) -> str:
+        """Extrahiert den Indicator-Namen aus der operation_id (Format: name::timestamp)."""
+        if '::' in operation_id:
+            return operation_id.split('::')[0]
+        # Fallback für alte IDs: alle Teile bis zum letzten _ joinen
+        parts = operation_id.rsplit('_', 1)
+        return parts[0] if len(parts) > 1 else operation_id
+
+    def update_operation(self, operation_id: str, step_index: int,
                         message: str = "", progress_percentage: Optional[float] = None):
         """Update an active operation."""
-        indicator_name = operation_id.split('_')[0]
-        
+        indicator_name = self._extract_indicator_name(operation_id)
+
         if indicator_name in self.indicators:
             self.indicators[indicator_name].update_progress(
                 step_index, message, progress_percentage
             )
-    
+
     def complete_operation(self, operation_id: str, success_message: str = ""):
         """Complete an active operation."""
-        indicator_name = operation_id.split('_')[0]
-        
+        indicator_name = self._extract_indicator_name(operation_id)
+
         if indicator_name in self.indicators:
             self.indicators[indicator_name].complete_operation(success_message)
-        
+
         if operation_id in self.active_operations:
             del self.active_operations[operation_id]
     
