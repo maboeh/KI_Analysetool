@@ -438,6 +438,16 @@ class Gui:
             return False
         prompt = self.get_prompt(content)
 
+        # Lokale Datenschutzprüfung + kombinierte Übertragungsbestätigung
+        privacy_check = getattr(self, "privacy_check_enabled", True)
+        from transfer_confirmation import confirm_transfer
+        decision = confirm_transfer(self.window, prompt, source_type=source_type,
+                                    privacy_check=privacy_check)
+        if not decision.proceed:
+            self.status_var.set("Analyse abgebrochen – keine Daten übertragen")
+            return False
+        prompt = decision.content
+
         if source_type == "pdf":
             outcome = analyze_pdf(content, prompt)
         else:

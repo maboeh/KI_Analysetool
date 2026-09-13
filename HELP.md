@@ -120,7 +120,9 @@ Tags und Favoriten sind über **Erweiterte Funktionen** erreichbar.
 
 ## Backup
 
-**Backup erstellen** sichert `results.db` und die lokalen Ergebnisdateien in einem ZIP-Archiv. **Backup wiederherstellen** ersetzt nach Bestätigung die aktuelle Ergebnisdatenbank und die Ergebnisdateien vollständig.
+**Backup erstellen** sichert `results.db` und die lokalen Ergebnisdateien in einem ZIP-Archiv inklusive Manifest mit Formatversion und Dateiliste.
+
+**Backup wiederherstellen** prüft das Archiv zuerst (Integrität, erlaubte Einträge, SQLite-Kopf, Formatversion). Vor dem Überschreiben wird automatisch ein Sicherungs-Backup des aktuellen Stands erstellt; schlägt dieses fehl, wird der Restore abgebrochen.
 
 Automatische tägliche Backups, selektiver Restore und Merge-Restore sind derzeit nicht vorhanden.
 
@@ -132,10 +134,17 @@ Automatische tägliche Backups, selektiver Restore und Merge-Restore sind derzei
 - erneute Prüfung jedes Redirects
 - keine abschaltbare TLS-Prüfung
 - lokale Speicherung von Ergebnissen und Profil
-- Übertragung des Analyseinhalts an OpenAI
-- temporärer PDF-Dateiupload bei PDF-Analyse
+- lokaler Datenschutz-Scan vor jeder Übertragung (E-Mail, IBAN, Kreditkarte, Telefon, API-Keys, Passwort-Zuweisungen)
+- kombinierte Bestätigung mit Übertragungshinweis, Fundstellen und Kostenschätzung; bei Funden optional „Schwärzen & senden"
+- temporärer PDF-Dateiupload bei PDF-Analyse (immer mit Hinweis bestätigt)
 
 Übertrage keine Passwörter, Schlüssel oder andere Geheimnisse.
+
+## Kostenkontrolle
+
+- Die geschätzten Kosten einer Anfrage werden vor dem Senden im Bestätigungsdialog angezeigt (wenn dieser erscheint).
+- In den **Einstellungen** kann ein optionales Sitzungsbudget in USD gesetzt werden. Ab 80 % Auslastung – einschließlich der geschätzten Kosten der nächsten Anfrage – erscheint vor jeder Analyse eine Bestätigung.
+- Verbrauch und Budget sind unter **Erweiterte Funktionen → Token- & Kosten-Übersicht** einsehbar.
 
 ## Tastaturkürzel
 

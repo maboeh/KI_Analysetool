@@ -341,6 +341,17 @@ python -m cProfile -o profile.stats main.py
 
 ## Changelog
 
+### Version 2.2.0 (in Arbeit: Zuverlässigkeit, UX und Datenschutz)
+- 🛡️ Typisierte Analyseergebnisse: Fehler werden nicht mehr als Erfolg gespeichert oder im Lernpfad gezählt
+- 🛡️ Atomare Ergebnis-Persistenz (Temp-Datei + Ersetzen) für Save und Update
+- ✨ Lernfortschritt nur noch durch echte Nutzeraktionen (typisierte, deduplizierte Lernereignisse)
+- ✨ Responsives Layout mit Split-Panes und persistenter Trennposition
+- ✨ Drag & Drop für Datei-Eingaben (optional via `tkinterdnd2`, Dateidialog als Fallback)
+- ✨ Zugängliche Hilfe: tastaturbedienbare ?-Indikatoren, strukturiertes Hilfefenster mit Abschnittsnavigation und Suche
+- 🛡️ Lokaler Datenschutz-Scan vor jeder Übertragung (E-Mail, IBAN, Kreditkarte, Telefon, API-Keys, Secrets) mit „Schwärzen & senden"
+- ✨ Kombinierte Übertragungsbestätigung mit Kostenschätzung und optionalem Sitzungsbudget (Warnung ab 80 %)
+- 🛡️ Gehärteter Restore: ZIP-Validierung, Zip-Slip-Schutz, Manifest mit Formatversion, automatisches Sicherungs-Backup vor dem Überschreiben
+
 ### Version 2.1.0 (Hilfe, Lernpfad und Sicherheit)
 - ✨ Onboarding-Dialog für Erstnutzer
 - ✨ Anfänger-/Fortgeschrittenen-/Experten-Modus mit persistentem Profil

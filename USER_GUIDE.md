@@ -82,6 +82,10 @@ Die aktuell in der Anwendung registrierten Modelle werden im Modell-Dropdown ang
 
 Nach einer erfolgreichen Analyse zeigt die Statusleiste den erfassten Tokenverbrauch und die geschätzten Sitzungskosten. Unter **Erweiterte Funktionen → Token- & Kosten-Übersicht** können die Werte angesehen und zurückgesetzt werden.
 
+Vor der Übertragung schätzt die App die Kosten der Anfrage aus der Textlänge und dem gewählten Modell. Erscheint der Übertragungsdialog, enthält er diese Schätzung.
+
+In den **Einstellungen** kann ein optionales **Sitzungsbudget** in USD gesetzt werden. Ab 80 % Auslastung – gemessen an bisherigen plus geschätzten Kosten der nächsten Anfrage – wird vor jeder Analyse eine Bestätigung verlangt. Das Budget wird im Benutzerprofil gespeichert und beim Start geladen.
+
 ## 7. Ergebnisse und Folgeaktionen
 
 Ergebnisse werden als formatierter Text angezeigt. Der Ergebnisbereich unterstützt:
@@ -149,13 +153,24 @@ Die Analyse-Historie hält die Schritte der aktuellen Sitzung einschließlich Fo
 Unter **Erweiterte Funktionen → Einstellungen** können aktiviert werden:
 
 - Ergebnisse automatisch speichern,
-- Visualisierungen automatisch erstellen.
+- Visualisierungen automatisch erstellen,
+- Datenschutzprüfung vor Übertragung,
+- optionales Sitzungsbudget in USD (leer = unbegrenzt).
 
 Die Einstellungen werden im lokalen Benutzerprofil gespeichert.
 
 ## 13. Backup und Wiederherstellung
 
-**Backup erstellen** erzeugt ein ZIP-Archiv aus `results.db` und dem Ergebnisverzeichnis. **Backup wiederherstellen** ersetzt nach ausdrücklicher Bestätigung die aktuelle Ergebnisdatenbank und die Ergebnisdateien vollständig.
+**Backup erstellen** erzeugt ein ZIP-Archiv aus `results.db` und dem Ergebnisverzeichnis. Jedes Backup enthält ein `manifest.json` mit Formatversion, Zeitstempel und Dateiliste.
+
+**Backup wiederherstellen** validiert das Archiv zuerst:
+
+- ZIP-Integrität,
+- erlaubte Archiveinträge (Schutz gegen Pfad-Manipulation/„Zip-Slip"),
+- SQLite-Dateikopf der enthaltenen `results.db`,
+- unterstützte Formatversion des Manifests.
+
+Vor dem Überschreiben wird automatisch ein **Sicherungs-Backup** des aktuellen Stands erstellt (Dateiname mit `_sicherung`). Schlägt dieses fehl, wird der Restore abgebrochen, damit kein Datenverlust entsteht. Backups ohne Manifest (ältere Versionen) werden mit Warnung akzeptiert.
 
 Automatisch geplante tägliche Backups, 30-Tage-Aufbewahrung, selektive Wiederherstellung und Merge-Restore sind derzeit nicht verfügbar.
 
@@ -170,6 +185,9 @@ Automatisch geplante tägliche Backups, 30-Tage-Aufbewahrung, selektive Wiederhe
 - Analyseinhalte werden an OpenAI gesendet.
 - PDF-Dateien im PDF-Analysetab werden temporär als Datei hochgeladen.
 - Ergebnisse und Benutzerprofil bleiben lokal.
+- Vor jeder Übertragung prüft ein **lokaler Datenschutz-Scanner** den ausgehenden Text auf E-Mail-Adressen, IBANs, Kreditkartennummern (mit Luhn-Prüfung), Telefonnummern, API-Keys und Passwort-/Secret-Zuweisungen. Es werden keine Daten zum Scannen an externe Dienste gesendet.
+- Bei Funden, einem PDF-Upload oder einer Budget-Warnung erscheint ein kombinierter **Bestätigungsdialog** mit Übertragungshinweis, Fundstellen (maskiert) und Kostenschätzung. Möglich sind „Senden", „Schwärzen & senden" (Funde werden durch Platzhalter ersetzt) und „Abbrechen" – bei Abbruch werden keine Daten übertragen.
+- Die Datenschutzprüfung lässt sich in den Einstellungen deaktivieren.
 
 Lade keine Dateien hoch, die Passwörter, private Schlüssel oder andere Geheimnisse enthalten.
 

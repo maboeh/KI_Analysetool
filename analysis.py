@@ -1,6 +1,7 @@
 import os
 import time
 import logging
+import threading
 from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
@@ -91,41 +92,77 @@ class AnalysisSession:
 
     def __init__(self, model: str = DEFAULT_MODEL):
         self._model = model if model in AVAILABLE_MODELS else DEFAULT_MODEL
+        self._lock = threading.Lock()
         self.total_tokens_used = 0
         self.total_cost_estimate = 0.0
+        self._budget_usd: Optional[float] = None
 
     @property
     def current_model(self) -> str:
-        return self._model
+        with self._lock:
+            return self._model
 
     def set_model(self, model: str):
-        if model in AVAILABLE_MODELS:
-            self._model = model
-            logger.info("Modell gewechselt auf: %s", model)
-        else:
-            logger.warning("Unbekanntes Modell: %s, behalte %s", model, self._model)
+        with self._lock:
+            if model in AVAILABLE_MODELS:
+                self._model = model
+                logger.info("Modell gewechselt auf: %s", model)
+            else:
+                logger.warning("Unbekanntes Modell: %s, behalte %s", model, self._model)
 
     def get_model(self) -> str:
-        return self._model
+        return self.current_model
 
     def get_usage_stats(self) -> dict:
-        return {
-            "total_tokens": self.total_tokens_used,
-            "total_cost": round(self.total_cost_estimate, 4),
-            "model": self._model,
-        }
+        with self._lock:
+            return {
+                "total_tokens": self.total_tokens_used,
+                "total_cost": round(self.total_cost_estimate, 4),
+                "model": self._model,
+            }
 
     def reset_usage_stats(self):
-        self.total_tokens_used = 0
-        self.total_cost_estimate = 0.0
+        with self._lock:
+            self.total_tokens_used = 0
+            self.total_cost_estimate = 0.0
 
     def record_usage(self, prompt_tokens: int, completion_tokens: int):
-        self.total_tokens_used += prompt_tokens + completion_tokens
-        model_info = AVAILABLE_MODELS.get(self._model, AVAILABLE_MODELS[DEFAULT_MODEL])
-        self.total_cost_estimate += (
-            prompt_tokens * model_info["cost_per_1k_input"] / 1000 +
-            completion_tokens * model_info["cost_per_1k_output"] / 1000
-        )
+        with self._lock:
+            self.total_tokens_used += prompt_tokens + completion_tokens
+            model_info = AVAILABLE_MODELS.get(self._model, AVAILABLE_MODELS[DEFAULT_MODEL])
+            self.total_cost_estimate += (
+                prompt_tokens * model_info["cost_per_1k_input"] / 1000 +
+                completion_tokens * model_info["cost_per_1k_output"] / 1000
+            )
+
+    def set_budget(self, limit_usd: Optional[float]):
+        """Setzt ein optionales Sitzungsbudget in USD (None = unbegrenzt)."""
+        with self._lock:
+            if limit_usd is None or (isinstance(limit_usd, (int, float)) and limit_usd <= 0):
+                self._budget_usd = None
+            else:
+                self._budget_usd = float(limit_usd)
+
+    def get_budget_status(self) -> dict:
+        """Budgetstatus der Sitzung: limit, spent, remaining, fraction, warn/exceeded."""
+        with self._lock:
+            spent = self.total_cost_estimate
+            limit = self._budget_usd
+        if not limit:
+            return {
+                "limit": None, "spent": round(spent, 4),
+                "remaining": None, "fraction": 0.0,
+                "warning": False, "exceeded": False,
+            }
+        fraction = spent / limit
+        return {
+            "limit": round(limit, 4),
+            "spent": round(spent, 4),
+            "remaining": round(max(0.0, limit - spent), 4),
+            "fraction": round(fraction, 3),
+            "warning": fraction >= 0.8,
+            "exceeded": fraction >= 1.0,
+        }
 
 
 # Default session for backward-compatible module-level functions.
@@ -150,6 +187,43 @@ def get_usage_stats() -> dict:
 def reset_usage_stats():
     """Setzt Token/Cost-Tracking zurück."""
     _default_session.reset_usage_stats()
+
+
+def set_session_budget(limit_usd: Optional[float]):
+    """Setzt ein optionales Sitzungsbudget in USD (None oder <= 0 = unbegrenzt)."""
+    _default_session.set_budget(limit_usd)
+
+
+def get_budget_status() -> dict:
+    """Gibt den Budgetstatus der Standardsession zurück."""
+    return _default_session.get_budget_status()
+
+
+def estimate_request_cost(text: str, model: Optional[str] = None,
+                          expected_output_tokens: int = 1024) -> dict:
+    """Schätzt die Kosten einer Analyse vor dem API-Request.
+
+    Args:
+        text: Der an den Anbieter gesendete Gesamttext (Prompt + Inhalt).
+        model: Optionaler Modellname; Standard ist das aktive Modell.
+        expected_output_tokens: Annahme für die Antwortlänge.
+
+    Returns:
+        Dict mit input_tokens, output_tokens, estimated_cost und model.
+    """
+    model = model or _default_session.current_model
+    info = AVAILABLE_MODELS.get(model, AVAILABLE_MODELS[DEFAULT_MODEL])
+    input_tokens = estimate_tokens(text or "")
+    cost = (
+        input_tokens * info["cost_per_1k_input"] / 1000 +
+        expected_output_tokens * info["cost_per_1k_output"] / 1000
+    )
+    return {
+        "input_tokens": input_tokens,
+        "output_tokens": expected_output_tokens,
+        "estimated_cost": round(cost, 6),
+        "model": model,
+    }
 
 
 def estimate_tokens(text: str) -> int:

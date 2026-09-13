@@ -141,6 +141,24 @@ class UserProfileManager:
     def get_setting(self, key: str, default: Any = None) -> Any:
         return self._profile.settings.get(key, default)
 
+    def set_session_budget(self, limit_usd):
+        """Persistiert ein optionales Sitzungsbudget in USD (None/0 = unbegrenzt)."""
+        self.set_setting("session_budget_usd", limit_usd if limit_usd else None)
+
+    def get_session_budget(self):
+        """Gibt das gespeicherte Sitzungsbudget in USD zurück (oder None)."""
+        value = self.get_setting("session_budget_usd")
+        if isinstance(value, (int, float)) and value > 0:
+            return float(value)
+        return None
+
+    def set_privacy_check_enabled(self, enabled: bool):
+        self.set_setting("privacy_check_enabled", bool(enabled))
+
+    def get_privacy_check_enabled(self) -> bool:
+        """Datenschutzprüfung vor externer Übertragung (Standard: an)."""
+        return bool(self.get_setting("privacy_check_enabled", True))
+
     def complete_step(self, step_id: str):
         self._profile.complete_step(step_id)
         self.save()

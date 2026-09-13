@@ -90,6 +90,11 @@ class EnhancedGui(BaseGui):
         self.prompt_library = PromptLibrary()
         self.auto_save_enabled = self.user_profile_manager.get_setting("auto_save_enabled", True)
         self.auto_viz_enabled = self.user_profile_manager.get_setting("auto_viz_enabled", False)
+        self.privacy_check_enabled = self.user_profile_manager.get_privacy_check_enabled()
+
+        # Persistiertes Sitzungsbudget in die Analyse-Session laden
+        from analysis import set_session_budget
+        set_session_budget(self.user_profile_manager.get_session_budget())
 
         # Initialize base GUI
         super().__init__(window)
@@ -428,33 +433,51 @@ class EnhancedGui(BaseGui):
         """Handle analysis request from enhanced input tabs."""
         # Read prompt values on the main thread before handing off to worker
         custom_prompt = self.question_text.get(1.0, tk.END).strip()
-        predefined_prompt = None
-        if not custom_prompt:
-            predefined_prompt = self.get_prompt(content)
+        is_custom_prompt = bool(custom_prompt)
+        if custom_prompt:
+            final_payload = f"{custom_prompt}\n\nInhalt: {content}"
+        else:
+            final_payload = self.get_prompt(content)
+
+        # Lokale Datenschutzprüfung + kombinierte Übertragungsbestätigung
+        from transfer_confirmation import confirm_transfer
+        decision = confirm_transfer(
+            self.window, final_payload,
+            source_type=self._source_type_for_analysis(analysis_type),
+            privacy_check=self.privacy_check_enabled,
+        )
+        if not decision.proceed:
+            self.status_var.set("Analyse abgebrochen – keine Daten übertragen")
+            return
+        final_payload = decision.content
 
         # Start analysis in background thread
         self._set_analysis_button_state(False)
         self.processing_thread = threading.Thread(
             target=self._process_enhanced_analysis,
-            args=(content, source_path, analysis_type, custom_prompt, predefined_prompt)
+            args=(content, source_path, analysis_type, is_custom_prompt, final_payload)
         )
         self.processing_thread.daemon = True
         self.processing_thread.start()
 
+    @staticmethod
+    def _source_type_for_analysis(analysis_type: str) -> str:
+        """Mappt interne Analysetypen auf Quelltypen für Übertragungshinweise."""
+        mapping = {
+            "pdf": "pdf", "image": "image", "website": "website",
+            "youtube": "youtube", "file_analysis": "file",
+            "excel": "file", "csv": "file", "multi": "file",
+        }
+        return mapping.get(analysis_type, "default")
+
     def _process_enhanced_analysis(self, content: str, source_path: str, analysis_type: str,
-                                   custom_prompt: str, predefined_prompt: Optional[str]):
+                                   is_custom_prompt: bool, final_payload: str):
         """Process analysis with enhanced features in background thread."""
         try:
             # Show progress
             self._safe_after(0, self._safe_progress_start, "Analyse wird durchgeführt...")
 
-            if custom_prompt:
-                # Use custom prompt
-                combined_prompt = f"{custom_prompt}\n\nInhalt: {content}"
-                outcome = analyze_text(combined_prompt)
-            else:
-                # Use predefined analysis type
-                outcome = analyze_text(predefined_prompt)
+            outcome = analyze_text(final_payload)
 
             # Process result through enhanced processor
             processed_result = self.results_processor.process_analysis_outcome(
@@ -464,7 +487,7 @@ class EnhancedGui(BaseGui):
             )
 
             # Update learning path for file-based analyses
-            if custom_prompt:
+            if is_custom_prompt:
                 self.learning_path.record_event(LearningEvent(
                     LearningEventType.CUSTOM_PROMPT_SUCCEEDED,
                     operation_id=processed_result.id
@@ -929,11 +952,19 @@ class EnhancedGui(BaseGui):
         info_frame = ttk.Frame(dialog, padding=15)
         info_frame.pack(fill=tk.X)
 
+        from analysis import get_budget_status
+        budget = get_budget_status()
         rows = [
             ("Aktuelles Modell", stats.get("model", "—")),
             ("Verbrauchte Tokens", f"{stats.get('total_tokens', 0):,}"),
             ("Geschätzte Kosten", f"${stats.get('total_cost', 0.0):.4f}"),
         ]
+        if budget.get("limit"):
+            rows.append((
+                "Sitzungsbudget",
+                f"${budget['spent']:.4f} / ${budget['limit']:.4f} "
+                f"({budget['fraction'] * 100:.0f} %)"
+            ))
         for label, value in rows:
             row = ttk.Frame(info_frame)
             row.pack(fill=tk.X, pady=3)
@@ -985,10 +1016,13 @@ class EnhancedGui(BaseGui):
             return
 
         try:
-            self.backup_manager.restore_backup(backup_file, overwrite=True)
+            result = self.backup_manager.restore_backup(backup_file, overwrite=True)
             self.results_browser.refresh_results()
-            messagebox.showinfo("Restore erfolgreich",
-                                f"Backup wurde wiederhergestellt aus:\n{backup_file}")
+            message = f"Backup wurde wiederhergestellt aus:\n{backup_file}"
+            if result.get("safety_backup"):
+                message += (f"\n\nDer vorherige Stand wurde gesichert unter:\n"
+                            f"{result['safety_backup']}")
+            messagebox.showinfo("Restore erfolgreich", message)
             self.status_var.set("Backup wiederhergestellt")
         except Exception as e:
             messagebox.showerror("Restore-Fehler", f"Fehler beim Restore: {str(e)}")
@@ -1195,7 +1229,7 @@ class EnhancedGui(BaseGui):
 
         dialog = tk.Toplevel(self.window)
         dialog.title("Einstellungen")
-        dialog.geometry("420x360")
+        dialog.geometry("460x480")
         dialog.transient(self.window)
         dialog.grab_set()
 
@@ -1204,6 +1238,11 @@ class EnhancedGui(BaseGui):
 
         auto_save_var = tk.BooleanVar(value=self.auto_save_enabled)
         auto_viz_var = tk.BooleanVar(value=self.auto_viz_enabled)
+        privacy_var = tk.BooleanVar(value=self.privacy_check_enabled)
+        current_budget = self.user_profile_manager.get_session_budget()
+        budget_var = tk.StringVar(
+            value=f"{current_budget:.2f}" if current_budget else ""
+        )
 
         ttk.Checkbutton(
             dialog,
@@ -1227,11 +1266,55 @@ class EnhancedGui(BaseGui):
             "Diagramme im Visualisierungs-Tab erstellt."
         )
 
+        ttk.Checkbutton(
+            dialog,
+            text="Datenschutzprüfung vor Übertragung",
+            variable=privacy_var
+        ).pack(anchor=tk.W, padx=20, pady=5)
+        add_help_indicator(
+            dialog,
+            "Wenn aktiviert, wird jeder an die KI gesendete Inhalt lokal auf "
+            "personenbezogene Daten und mögliche Secrets (API-Keys, Passwörter) "
+            "geprüft. Bei Funden können Sie schwärzen oder abbrechen."
+        )
+
+        budget_frame = ttk.Frame(dialog)
+        budget_frame.pack(anchor=tk.W, padx=20, pady=5)
+        ttk.Label(budget_frame, text="Sitzungsbudget (USD, leer = unbegrenzt):"
+                  ).pack(side=tk.LEFT)
+        budget_entry = ttk.Entry(budget_frame, textvariable=budget_var, width=10)
+        budget_entry.pack(side=tk.LEFT, padx=5)
+        add_help_indicator(
+            budget_frame,
+            "Optionales Kostenlimit pro Sitzung. Ab 80 % Auslastung warnt die App "
+            "vor jeder weiteren Anfrage; bei Überschreitung ist eine explizite "
+            "Bestätigung erforderlich."
+        )
+
         def apply_and_close():
+            raw_budget = budget_var.get().strip().replace(",", ".")
+            budget_value = None
+            if raw_budget:
+                try:
+                    budget_value = float(raw_budget)
+                    if budget_value <= 0:
+                        raise ValueError
+                except ValueError:
+                    messagebox.showerror(
+                        "Ungültiges Budget",
+                        "Bitte geben Sie eine positive Zahl in USD ein oder lassen Sie das Feld leer.",
+                        parent=dialog
+                    )
+                    return
             self.auto_save_enabled = auto_save_var.get()
             self.auto_viz_enabled = auto_viz_var.get()
+            self.privacy_check_enabled = privacy_var.get()
             self.user_profile_manager.set_setting("auto_save_enabled", self.auto_save_enabled)
             self.user_profile_manager.set_setting("auto_viz_enabled", self.auto_viz_enabled)
+            self.user_profile_manager.set_privacy_check_enabled(self.privacy_check_enabled)
+            self.user_profile_manager.set_session_budget(budget_value)
+            from analysis import set_session_budget
+            set_session_budget(budget_value)
             self.status_var.set(
                 f"Einstellungen gespeichert (Auto-Save: {'an' if self.auto_save_enabled else 'aus'})"
             )

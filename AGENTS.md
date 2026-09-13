@@ -32,7 +32,8 @@
 - **Visualisierung:** `visualization_panel.py`, `chart_generator.py`
 - **Daten:** `data_models.py` (Single-Source für ActionType/ChartType Enums), `data_extractor.py`, `data_categorizer.py`
 - **Sicherheit:** `security.py` (SSRF-Schutz mit DNS-Auflösung + Path-Validator + redirect-safe requests), `analysis.is_safe_url` nutzt beides
-- **Backup:** `backup_manager.py` (ZIP aus results.db + results/)
+- **Backup:** `backup_manager.py` (ZIP aus results.db + results/ + manifest.json; Restore validiert Integrität/Zip-Slip und legt vorher ein Sicherungs-Backup an)
+- **Datenschutz:** `privacy_scanner.py` (lokaler PII-/Secret-Scan + Redaction) und `transfer_confirmation.py` (kombinierte Bestätigung vor Provider-Transfer: Hinweis + Funde + Kostenschätzung + Budget)
 - **Lernpfad:** `learning_path.py` (geführte Schritte vom Anfänger zum Experten)
 - **Benutzerprofil:** `user_profile.py` (Erfahrungsgrad, Onboarding-Status, Fortschritt)
 - **Prompt-Bibliothek:** `prompt_library.py` (wiederverwendbare Vorlagen mit Erklärungen)
@@ -47,6 +48,6 @@
 - **Logging:** File-Handler nach `logs/application.log` (in `main.py` konfiguriert); Secrets werden durch `SecretFilter` maskiert
 
 ## Bekannte Limitierungen
-- Drag & Drop ist nicht implementiert (nur `filedialog`)
+- Drag & Drop ist optional (via `tkinterdnd2`); ohne die Bibliothek bleibt der `filedialog`-Fallback aktiv
 - HEATMAP-Chart-Typ wurde aus dem Enum entfernt (war nicht implementiert)
 - `data_categorizer.py` ist implementiert aber nur minimal in `results_processor` integriert
