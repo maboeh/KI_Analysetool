@@ -24,6 +24,7 @@ from analysis import (AnalysisFailure, analyze_text, extract_transkript,
 from config import check_api_key_exists, save_api_key, get_api_key
 from markdown_formatter import configure_markdown_tags, markdown_to_tkinter_text
 from user_profile import UserProfileManager
+from learning_events import LearningEvent, LearningEventType
 from learning_path import LearningPath
 from prompt_library import PromptLibrary
 from tutorial_overlay import TutorialOverlay
@@ -87,6 +88,8 @@ class EnhancedGui(BaseGui):
         self.user_profile_manager = UserProfileManager()
         self.learning_path = LearningPath(profile_manager=self.user_profile_manager)
         self.prompt_library = PromptLibrary()
+        self.auto_save_enabled = self.user_profile_manager.get_setting("auto_save_enabled", True)
+        self.auto_viz_enabled = self.user_profile_manager.get_setting("auto_viz_enabled", False)
 
         # Initialize base GUI
         super().__init__(window)
@@ -172,6 +175,7 @@ class EnhancedGui(BaseGui):
 
         # Add learning path panel for beginners/intermediate users
         self._setup_learning_path_panel()
+        self._apply_experience_level()
 
         # Add new menu items and toolbar
         self._add_enhanced_menu()
@@ -379,6 +383,10 @@ class EnhancedGui(BaseGui):
             label="Hilfe: Erste Schritte",
             command=lambda: show_help_window(self.window, anchor="Schnellstart für Anfänger")
         )
+        self.help_menu.add_command(
+            label="Onboarding erneut starten",
+            command=self._show_onboarding
+        )
 
         # Add experience level selector
         if not hasattr(self.window, 'menubar'):
@@ -452,10 +460,16 @@ class EnhancedGui(BaseGui):
 
             # Update learning path for file-based analyses
             if custom_prompt:
-                self.learning_path.record_event("custom_prompt_succeeded")
-            if analysis_type in ("file_analysis", "pdf", "excel", "csv", "image", "multi_file", "enhanced_analysis"):
+                self.learning_path.record_event(LearningEvent(
+                    LearningEventType.CUSTOM_PROMPT_SUCCEEDED,
+                    operation_id=processed_result.id
+                ))
+            if analysis_type in ("file_analysis", "pdf", "excel", "csv", "image", "multi"):
                 try:
-                    self.learning_path.record_event("file_analyzed")
+                    self.learning_path.record_event(LearningEvent(
+                        LearningEventType.FILE_ANALYZED,
+                        operation_id=processed_result.id
+                    ))
                 except Exception:
                     pass
 
@@ -526,7 +540,7 @@ class EnhancedGui(BaseGui):
 
         # Update learning path progress
         try:
-            self.learning_path.record_event("analysis_succeeded")
+            self.learning_path.record_event(LearningEventType.ANALYSIS_SUCCEEDED)
             self._update_learning_path_panel()
         except Exception:
             pass
@@ -756,8 +770,12 @@ class EnhancedGui(BaseGui):
 
         # Update learning path for follow-up actions
         try:
-            event_name = "data_extracted" if action_name == "extract_data" else "follow_up_succeeded"
-            self.learning_path.record_event(event_name)
+            event_type = (
+                LearningEventType.DATA_EXTRACTED
+                if action_name == "extract_data"
+                else LearningEventType.FOLLOW_UP_SUCCEEDED
+            )
+            self.learning_path.record_event(event_type)
             self._update_learning_path_panel()
         except Exception:
             pass
@@ -797,14 +815,14 @@ class EnhancedGui(BaseGui):
 
     def _on_chart_created(self, visualization):
         """Handle chart creation completion."""
-        self.learning_path.record_event("chart_created")
+        self.learning_path.record_event(LearningEventType.CHART_CREATED)
         self._update_learning_path_panel()
         chart_name = visualization.file_path or visualization.chart_type.value
         self.status_var.set(f"Diagramm erstellt: {os.path.basename(chart_name)}")
         
     def _on_export_completed(self, export_path: str):
         """Handle export completion."""
-        self.learning_path.record_event("excel_exported")
+        self.learning_path.record_event(LearningEventType.EXCEL_EXPORTED)
         self._update_learning_path_panel()
         self.status_var.set(f"Export abgeschlossen: {os.path.basename(export_path)}")
         messagebox.showinfo("Export erfolgreich", f"Daten wurden exportiert nach:\n{export_path}")
@@ -1206,6 +1224,8 @@ class EnhancedGui(BaseGui):
         def apply_and_close():
             self.auto_save_enabled = auto_save_var.get()
             self.auto_viz_enabled = auto_viz_var.get()
+            self.user_profile_manager.set_setting("auto_save_enabled", self.auto_save_enabled)
+            self.user_profile_manager.set_setting("auto_viz_enabled", self.auto_viz_enabled)
             self.status_var.set(
                 f"Einstellungen gespeichert (Auto-Save: {'an' if self.auto_save_enabled else 'aus'})"
             )
@@ -1223,8 +1243,8 @@ class EnhancedGui(BaseGui):
                 content = self.enhanced_input_tabs.get_current_content()
                 if content:
                     # Enhanced tabs return just content, we need to determine source and type
-                    source_path = "enhanced_input"
-                    analysis_type = "enhanced_analysis"
+                    analysis_type = self.enhanced_input_tabs.get_current_type() or "enhanced_analysis"
+                    source_path = analysis_type
                     self._on_enhanced_analysis_requested(content, source_path, analysis_type)
                     return
             
@@ -1234,7 +1254,7 @@ class EnhancedGui(BaseGui):
 
             # Track the basic analysis step after a successful run.
             try:
-                self.learning_path.record_event("analysis_succeeded")
+                self.learning_path.record_event(LearningEventType.ANALYSIS_SUCCEEDED)
                 self._update_learning_path_panel()
             except Exception:
                 pass
@@ -1263,7 +1283,7 @@ class EnhancedGui(BaseGui):
                     self.current_result,
                     f"Analyse vom {self.current_result.created_at.strftime('%d.%m.%Y %H:%M')}"
                 )
-                self.learning_path.record_event("result_saved")
+                self.learning_path.record_event(LearningEventType.RESULT_SAVED)
                 self._update_learning_path_panel()
                 self.status_var.set(f"Ergebnis gespeichert (ID: {result_id[:8]}...)")
             except Exception as e:
@@ -1276,7 +1296,7 @@ class EnhancedGui(BaseGui):
     def _maybe_show_onboarding(self):
         """Show the onboarding dialog if the user has not completed it yet."""
         profile = self.user_profile_manager.profile
-        if profile.onboarding_completed:
+        if profile.onboarding_completed or profile.onboarding_skipped:
             return
         self._show_onboarding()
 
@@ -1320,9 +1340,10 @@ class EnhancedGui(BaseGui):
             {
                 "title": "Bereit!",
                 "text": (
-                    "Wenn du Hilfe brauchst, findest du im Menü 'Hilfe' die Dokumentation.\n\n"
-                    "Viel Erfolg beim Analysieren!"
-                )
+                    "Starte direkt mit einem Beispiel oder schließe das Onboarding ab. "
+                    "Wenn du Hilfe brauchst, findest du im Menü 'Hilfe' die Dokumentation."
+                ),
+                "show_example": True
             }
         ]
 
@@ -1350,6 +1371,8 @@ class EnhancedGui(BaseGui):
         back_btn = ttk.Button(btn_frame, text="Zurück", state=tk.DISABLED)
         back_btn.pack(side=tk.LEFT)
 
+        example_btn = ttk.Button(btn_frame, text="Beispieltext einsetzen")
+
         skip_btn = ttk.Button(btn_frame, text="Überspringen")
         skip_btn.pack(side=tk.RIGHT, padx=(5, 0))
 
@@ -1365,6 +1388,11 @@ class EnhancedGui(BaseGui):
                 mode_frame.pack(after=text_label, anchor=tk.W, pady=(15, 0), fill=tk.X)
             else:
                 mode_frame.pack_forget()
+
+            if step.get("show_example"):
+                example_btn.pack(side=tk.LEFT, padx=(10, 0))
+            else:
+                example_btn.pack_forget()
 
             back_btn.config(state=tk.NORMAL if current_step["index"] > 0 else tk.DISABLED)
             next_btn.config(text="Fertig" if current_step["index"] == len(steps) - 1 else "Weiter")
@@ -1383,16 +1411,41 @@ class EnhancedGui(BaseGui):
 
         def finish():
             self.user_profile_manager.set_experience_level(mode_var.get())
+            if mode_var.get() != "expert":
+                self.user_profile_manager.set_learning_panel_visibility(True)
             self.user_profile_manager.complete_onboarding()
             self._apply_experience_level()
             self._update_learning_path_panel()
             dialog.destroy()
 
+        def skip():
+            self.user_profile_manager.set_experience_level(mode_var.get())
+            if mode_var.get() != "expert":
+                self.user_profile_manager.set_learning_panel_visibility(True)
+            self.user_profile_manager.skip_onboarding()
+            self._apply_experience_level()
+            dialog.destroy()
+
+        def load_example():
+            text_tab = self.enhanced_input_tabs.tab_frames.get("text")
+            if text_tab:
+                self.input_tabs.select(text_tab)
+                self.enhanced_input_tabs.text_input.delete(1.0, tk.END)
+                self.enhanced_input_tabs.text_input.insert(
+                    1.0,
+                    "Die Digitalisierung verändert die Arbeitswelt. KI und Automatisierung "
+                    "schaffen Effizienzgewinne, erfordern aber neue Kompetenzen."
+                )
+                self.combobox.set("Zusammenfassung")
+            finish()
+            self.status_var.set("Beispiel vorbereitet – klicken Sie auf 'Frage senden'.")
+
         next_btn.config(command=next_action)
         back_btn.config(command=back_action)
-        skip_btn.config(command=finish)
+        example_btn.config(command=load_example)
+        skip_btn.config(command=skip)
 
-        dialog.protocol("WM_DELETE_WINDOW", finish)
+        dialog.protocol("WM_DELETE_WINDOW", skip)
         render()
 
     def _apply_experience_level(self):
@@ -1400,10 +1453,22 @@ class EnhancedGui(BaseGui):
         level = self.user_profile_manager.profile.experience_level
         if level == "beginner":
             # Show learning panel and keep tooltips visible.
-            self._show_learning_path_panel()
+            self.analysis_frame.configure(padding=12)
+            self.question_text.configure(height=6)
+            if self.user_profile_manager.profile.show_learning_panel:
+                self._show_learning_path_panel()
+            else:
+                self._hide_learning_path_panel()
         elif level == "intermediate":
-            self._show_learning_path_panel()
+            self.analysis_frame.configure(padding=10)
+            self.question_text.configure(height=4)
+            if self.user_profile_manager.profile.show_learning_panel:
+                self._show_learning_path_panel()
+            else:
+                self._hide_learning_path_panel()
         else:  # expert
+            self.analysis_frame.configure(padding=5)
+            self.question_text.configure(height=3)
             self._hide_learning_path_panel()
 
     def _setup_learning_path_panel(self):
@@ -1418,10 +1483,15 @@ class EnhancedGui(BaseGui):
                   font=("Segoe UI", 9, "bold")).pack(side=tk.LEFT)
 
         self.learning_toggle_btn = ttk.Button(
-            self.learning_path_header, text="Ausblenden",
+            self.learning_path_header, text="Später erinnern",
             command=self._hide_learning_path_panel
         )
         self.learning_toggle_btn.pack(side=tk.RIGHT)
+        ttk.Button(
+            self.learning_path_header,
+            text="Zurücksetzen",
+            command=self._reset_learning_path
+        ).pack(side=tk.RIGHT, padx=(0, 5))
 
         self.learning_steps_container = ttk.Frame(self.learning_path_frame)
         self.learning_steps_container.pack(fill=tk.BOTH, expand=True, pady=(10, 0))
@@ -1430,10 +1500,12 @@ class EnhancedGui(BaseGui):
         self._update_learning_path_panel()
 
         # Place the panel above the main content frame (which is currently packed).
-        self.learning_path_frame.pack(fill=tk.X, pady=(0, 10), before=self.content_frame)
+        profile = self.user_profile_manager.profile
+        if profile.show_learning_panel and profile.experience_level != "expert":
+            self.learning_path_frame.pack(fill=tk.X, pady=(0, 10), before=self.content_frame)
 
         # Hide for expert users initially, but keep widget available.
-        if self.user_profile_manager.profile.experience_level == "expert":
+        if profile.experience_level == "expert":
             self.learning_path_frame.pack_forget()
 
     def _show_learning_path_panel(self):
@@ -1442,6 +1514,7 @@ class EnhancedGui(BaseGui):
             self.learning_path_frame.pack(fill=tk.X, pady=(0, 10), before=self.content_frame)
         except tk.TclError:
             pass
+        self.user_profile_manager.set_learning_panel_visibility(True)
         self._update_learning_path_panel()
 
     def _hide_learning_path_panel(self):
@@ -1450,6 +1523,7 @@ class EnhancedGui(BaseGui):
             self.learning_path_frame.pack_forget()
         except tk.TclError:
             pass
+        self.user_profile_manager.set_learning_panel_visibility(False)
 
     def _toggle_learning_path_panel(self):
         """Toggle the visibility of the learning path panel."""
@@ -1457,6 +1531,15 @@ class EnhancedGui(BaseGui):
             self._hide_learning_path_panel()
         else:
             self._show_learning_path_panel()
+
+    def _reset_learning_path(self):
+        if messagebox.askyesno(
+            "Lernpfad zurücksetzen",
+            "Möchten Sie den gesamten Lernfortschritt zurücksetzen?"
+        ):
+            self.learning_path.reset()
+            self._update_learning_path_panel()
+            self.status_var.set("Lernpfad zurückgesetzt")
 
     def _update_learning_path_panel(self):
         """Refresh the learning path checklist."""
@@ -1475,21 +1558,27 @@ class EnhancedGui(BaseGui):
                       text="Alle Lernpfad-Schritte abgeschlossen!").pack(anchor=tk.W, pady=5)
             return
 
-        for item in self.learning_path.to_ui_items():
-            step_frame = ttk.Frame(self.learning_steps_container)
-            step_frame.pack(fill=tk.X, pady=2)
-
-            state_text = "✓" if item["completed"] else "○"
-            label = ttk.Label(step_frame, text=f"{state_text} {item['title']}")
-            label.pack(side=tk.LEFT)
-
-            if not item["completed"]:
-                btn = ttk.Button(
-                    step_frame, text="Zeige mir wie",
-                    command=lambda i=item: self._run_tutorial_for_step(i["id"])
-                )
-                btn.pack(side=tk.RIGHT)
-                break  # Only show the next open step in compact mode
+        current_step = progress["current_step"]
+        step_frame = ttk.Frame(self.learning_steps_container)
+        step_frame.pack(fill=tk.X, pady=2)
+        text_frame = ttk.Frame(step_frame)
+        text_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        ttk.Label(
+            text_frame,
+            text=f"Nächster Schritt: {current_step.title}",
+            font=("Segoe UI", 9, "bold")
+        ).pack(anchor=tk.W)
+        ttk.Label(
+            text_frame,
+            text=current_step.description,
+            wraplength=700
+        ).pack(anchor=tk.W)
+        ttk.Button(
+            step_frame,
+            text="Anleitung anzeigen",
+            command=lambda: self._run_tutorial_for_step(current_step.id)
+        ).pack(side=tk.RIGHT)
+        # Only show the next open step in compact mode
 
     def _run_tutorial_for_step(self, step_id: str):
         """Launch a tutorial overlay for the given learning step."""
@@ -1548,6 +1637,8 @@ class EnhancedGui(BaseGui):
 
         def apply():
             self.user_profile_manager.set_experience_level(mode_var.get())
+            if mode_var.get() != "expert":
+                self.user_profile_manager.set_learning_panel_visibility(True)
             self._apply_experience_level()
             self.status_var.set(f"Erfahrungsgrad geändert: {mode_var.get()}")
             dialog.destroy()
@@ -1568,11 +1659,14 @@ class EnhancedGui(BaseGui):
         level = self.user_profile_manager.profile.experience_level
         templates = self.prompt_library.for_difficulty(level)
 
-        # Group by category
-        categories = {}
-        for template in templates:
-            categories.setdefault(template.category, []).append(template)
+        search_frame = ttk.Frame(dialog, padding=(10, 0))
+        search_frame.pack(fill=tk.X)
+        ttk.Label(search_frame, text="Suchen:").pack(side=tk.LEFT)
+        search_var = tk.StringVar()
+        search_entry = ttk.Entry(search_frame, textvariable=search_var)
+        search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 0))
 
+        # Group by category
         container = ttk.Frame(dialog, padding=10)
         container.pack(fill=tk.BOTH, expand=True)
         container.columnconfigure(0, weight=1)
@@ -1590,10 +1684,28 @@ class EnhancedGui(BaseGui):
         tree.config(yscrollcommand=scrollbar.set)
 
         # Populate with categories as parents and templates as children
-        for category, items in categories.items():
-            parent = tree.insert("", tk.END, text=category, values=(category, ""), open=True)
-            for template in items:
-                tree.insert(parent, tk.END, values=(template.title, template.description), tags=(template.id,))
+        def populate_templates(*_args):
+            tree.delete(*tree.get_children())
+            query = search_var.get().strip().lower()
+            categories = {}
+            for template in templates:
+                searchable = " ".join([
+                    template.category,
+                    template.title,
+                    template.description,
+                    *template.tags
+                ]).lower()
+                if query and query not in searchable:
+                    continue
+                categories.setdefault(template.category, []).append(template)
+            for category, items in categories.items():
+                parent = tree.insert("", tk.END, text=category, values=(category, ""), open=True)
+                for template in items:
+                    tree.insert(parent, tk.END, values=(template.title, template.description), tags=(template.id,))
+
+        search_var.trace_add("write", populate_templates)
+        populate_templates()
+        search_entry.focus_set()
 
         def use_template():
             selected = tree.selection()

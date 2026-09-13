@@ -827,6 +827,16 @@ class ExtendedInputTabs:
         ttk.Button(btn_frame, text="Schließen", 
                   command=preview_window.destroy).pack(side=tk.RIGHT)
     
+    def get_current_type(self) -> Optional[str]:
+        current_tab_id = self.parent_notebook.select()
+        if not current_tab_id:
+            return None
+        current_tab = self.parent_notebook.nametowidget(current_tab_id)
+        for tab_type, tab_frame in self.tab_frames.items():
+            if current_tab is tab_frame:
+                return tab_type
+        return None
+
     def get_current_content(self) -> Optional[str]:
         """
         Get content from currently selected tab for analysis.

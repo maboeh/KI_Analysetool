@@ -7,6 +7,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from learning_events import LearningEvent, LearningEventType
 from learning_path import LearningPath, DEFAULT_LEARNING_STEPS
 from user_profile import UserProfileManager
 
@@ -52,9 +53,15 @@ class TestLearningPath(unittest.TestCase):
         self.assertTrue(path2.is_completed("first_analysis"))
 
     def test_domain_event_completes_matching_step(self):
-        completed = self.learning_path.record_event("chart_created")
+        completed = self.learning_path.record_event(LearningEventType.CHART_CREATED)
         self.assertEqual(completed, "visualize")
         self.assertTrue(self.learning_path.is_completed("visualize"))
+
+    def test_duplicate_operation_event_is_ignored(self):
+        event = LearningEvent(LearningEventType.ANALYSIS_SUCCEEDED, operation_id="operation-1")
+        self.assertEqual(self.learning_path.record_event(event), "first_analysis")
+        self.assertIsNone(self.learning_path.record_event(event))
+        self.assertEqual(self.learning_path.completed_steps, ["first_analysis"])
 
     def test_unknown_domain_event_does_not_change_progress(self):
         completed = self.learning_path.record_event("tutorial_viewed")

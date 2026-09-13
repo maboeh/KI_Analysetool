@@ -152,7 +152,10 @@ class TestSimpleIntegrationWorkflows(unittest.TestCase):
         )
         
         # Test results manager
-        manager = ResultsManager()
+        manager = ResultsManager(
+            db_path=os.path.join(self.temp_dir, "results.db"),
+            results_dir=os.path.join(self.temp_dir, "results")
+        )
         
         # Save result
         result_id = manager.save_result(result, "Test Result")
@@ -253,7 +256,10 @@ class TestSimpleIntegrationWorkflows(unittest.TestCase):
         # Initialize components
         router = FileHandlerRouter()
         processor = ResultsProcessor()
-        manager = ResultsManager()
+        manager = ResultsManager(
+            db_path=os.path.join(self.temp_dir, "results.db"),
+            results_dir=os.path.join(self.temp_dir, "results")
+        )
         
         # Step 1: Extract content
         content = router.get_analysis_content(excel_file)

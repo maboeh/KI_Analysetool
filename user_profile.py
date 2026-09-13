@@ -18,8 +18,10 @@ class UserProfile:
 
     experience_level: str = "beginner"  # "beginner", "intermediate", "expert"
     onboarding_completed: bool = False
+    onboarding_skipped: bool = False
     show_learning_panel: bool = True
     completed_tutorial_steps: List[str] = field(default_factory=list)
+    completed_learning_event_ids: List[str] = field(default_factory=list)
     dismissed_help_ids: List[str] = field(default_factory=list)
     last_used_model: str = "gpt-4o"
     settings: Dict[str, Any] = field(default_factory=dict)
@@ -115,7 +117,29 @@ class UserProfileManager:
 
     def complete_onboarding(self):
         self._profile.mark_onboarding_complete()
+        self._profile.onboarding_skipped = False
         self.save()
+
+    def skip_onboarding(self):
+        self._profile.onboarding_skipped = True
+        self.save()
+
+    def set_learning_panel_visibility(self, visible: bool):
+        self._profile.show_learning_panel = bool(visible)
+        self.save()
+
+    def mark_learning_event_handled(self, event_id: str):
+        if event_id not in self._profile.completed_learning_event_ids:
+            self._profile.completed_learning_event_ids.append(event_id)
+            self._profile.completed_learning_event_ids = self._profile.completed_learning_event_ids[-500:]
+            self.save()
+
+    def set_setting(self, key: str, value: Any):
+        self._profile.settings[key] = value
+        self.save()
+
+    def get_setting(self, key: str, default: Any = None) -> Any:
+        return self._profile.settings.get(key, default)
 
     def complete_step(self, step_id: str):
         self._profile.complete_step(step_id)

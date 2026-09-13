@@ -82,6 +82,15 @@ class TestExtendedInputTabs(unittest.TestCase):
         self.assertEqual(self.notebook.index("end"), 5)
     
     @patch('extended_input_tabs.FileHandlerRouter')
+    def test_current_type_uses_tab_identity(self, mock_router_class):
+        mock_router_class.return_value = Mock()
+        tabs = ExtendedInputTabs(self.notebook, self.status_callback)
+        self.notebook.select(tabs.tab_frames["text"])
+        self.assertEqual(tabs.get_current_type(), "text")
+        self.notebook.select(tabs.tab_frames["excel"])
+        self.assertEqual(tabs.get_current_type(), "excel")
+
+    @patch('extended_input_tabs.FileHandlerRouter')
     def test_excel_tab_components(self, mock_router_class):
         """Test Excel tab UI components."""
         mock_router = Mock()

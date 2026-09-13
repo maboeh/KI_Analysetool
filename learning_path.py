@@ -6,8 +6,9 @@ analysis to advanced workflows. Progress is persisted through UserProfile.
 """
 
 from dataclasses import dataclass
-from typing import List, Dict, Optional, Callable, Any
+from typing import List, Dict, Optional, Callable, Any, Union
 
+from learning_events import LearningEvent, LearningEventType
 from user_profile import UserProfileManager
 
 
@@ -25,15 +26,15 @@ class LearningStep:
 
 # Default learning path. Steps are designed to be completed in order.
 LEARNING_EVENT_STEPS = {
-    "analysis_succeeded": "first_analysis",
-    "follow_up_succeeded": "try_follow_up",
-    "file_analyzed": "analyze_file",
-    "data_extracted": "extract_data",
-    "chart_created": "visualize",
-    "excel_exported": "export_excel",
-    "result_saved": "save_result",
-    "results_compared": "compare_results",
-    "custom_prompt_succeeded": "custom_prompt",
+    LearningEventType.ANALYSIS_SUCCEEDED: "first_analysis",
+    LearningEventType.FOLLOW_UP_SUCCEEDED: "try_follow_up",
+    LearningEventType.FILE_ANALYZED: "analyze_file",
+    LearningEventType.DATA_EXTRACTED: "extract_data",
+    LearningEventType.CHART_CREATED: "visualize",
+    LearningEventType.EXCEL_EXPORTED: "export_excel",
+    LearningEventType.RESULT_SAVED: "save_result",
+    LearningEventType.RESULTS_COMPARED: "compare_results",
+    LearningEventType.CUSTOM_PROMPT_SUCCEEDED: "custom_prompt",
 }
 
 
@@ -153,11 +154,29 @@ class LearningPath:
         if not self.is_completed(step_id):
             self._profile_manager.complete_step(step_id)
 
-    def record_event(self, event_name: str) -> Optional[str]:
-        step_id = LEARNING_EVENT_STEPS.get(event_name)
+    def record_event(
+        self,
+        event: Union[LearningEvent, LearningEventType, str]
+    ) -> Optional[str]:
+        event_id = None
+        if isinstance(event, LearningEvent):
+            event_type = event.event_type
+            event_id = event.deduplication_key
+            if event_id in self._profile_manager.profile.completed_learning_event_ids:
+                return None
+        elif isinstance(event, LearningEventType):
+            event_type = event
+        else:
+            try:
+                event_type = LearningEventType(event)
+            except ValueError:
+                return None
+        step_id = LEARNING_EVENT_STEPS.get(event_type)
         if not step_id:
             return None
         self.complete(step_id)
+        if event_id:
+            self._profile_manager.mark_learning_event_handled(event_id)
         return step_id
 
     def get_step(self, step_id: str) -> Optional[LearningStep]:
@@ -184,6 +203,7 @@ class LearningPath:
 
     def reset(self):
         self._profile_manager.profile.completed_tutorial_steps.clear()
+        self._profile_manager.profile.completed_learning_event_ids.clear()
         self._profile_manager.save()
 
     def to_ui_items(self) -> List[Dict[str, Any]]:

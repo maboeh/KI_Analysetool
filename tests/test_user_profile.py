@@ -17,6 +17,7 @@ class TestUserProfile(unittest.TestCase):
         profile = UserProfile()
         self.assertEqual(profile.experience_level, "beginner")
         self.assertFalse(profile.onboarding_completed)
+        self.assertFalse(profile.onboarding_skipped)
         self.assertTrue(profile.show_learning_panel)
         self.assertEqual(profile.completed_tutorial_steps, [])
 
@@ -55,6 +56,17 @@ class TestUserProfileManager(unittest.TestCase):
         # Reset singleton state for each test
         UserProfileManager._instance = None
         self.manager = UserProfileManager(config_dir=self.tmpdir.name)
+
+    def test_skip_onboarding_is_distinct_from_completion(self):
+        self.manager.skip_onboarding()
+        self.assertTrue(self.manager.profile.onboarding_skipped)
+        self.assertFalse(self.manager.profile.onboarding_completed)
+
+    def test_learning_panel_preference_persists(self):
+        self.manager.set_learning_panel_visibility(False)
+        UserProfileManager._instance = None
+        fresh = UserProfileManager(config_dir=self.tmpdir.name)
+        self.assertFalse(fresh.profile.show_learning_panel)
 
     def test_singleton(self):
         other = UserProfileManager(config_dir=self.tmpdir.name)
