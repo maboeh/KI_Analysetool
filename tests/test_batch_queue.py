@@ -73,7 +73,8 @@ class TestJobPersistence(BatchQueueTestCase):
 class TestExecution(BatchQueueTestCase):
     @patch("batch_queue.analyze_text")
     def test_items_complete_and_save_results(self, mock_analyze):
-        mock_analyze.side_effect = lambda prompt: _ok(f"Ergebnis für {len(prompt)}")
+        mock_analyze.side_effect = \
+            lambda prompt, model=None: _ok(f"Ergebnis für {len(prompt)}")
         job_id = self._create_text_job()
         self.assertTrue(self.queue.start_job(job_id))
         self._wait(job_id)
@@ -128,6 +129,35 @@ class TestExecution(BatchQueueTestCase):
         self.assertEqual(self.queue.get_job(job_id).status, "completed")
         # Find-Item wurde nie an analyze_text gesendet
         self.assertEqual(mock_analyze.call_count, 1)
+
+    @patch("batch_queue.analyze_text")
+    def test_generic_invalid_input_stays_failed(self, mock_analyze):
+        """Nur Datenschutz-Funde werden 'skipped'; INVALID_INPUT bleibt 'failed'."""
+        mock_analyze.return_value = _err(AnalysisErrorCode.INVALID_INPUT)
+        job_id = self._create_text_job(sources=("Sauberer Text",))
+        self.queue.start_job(job_id)
+        self._wait(job_id)
+        item = self.queue.get_items(job_id)[0]
+        self.assertEqual(item.status, "failed")
+        self.assertEqual(item.error_code, AnalysisErrorCode.INVALID_INPUT.value)
+
+    @patch("batch_queue.analyze_text")
+    def test_job_model_passed_without_session_mutation(self, mock_analyze):
+        """Das Job-Modell wird explizit übergeben, die Session bleibt unverändert."""
+        import analysis
+        previous_model = analysis._default_session.current_model
+        mock_analyze.return_value = _ok()
+        job_id = self.queue.create_job(
+            name="Job",
+            prompt="Analysiere: {text}",
+            model="gpt-4o-mini",
+            items=[{"source": "t1", "source_type": "text"}],
+        )
+        self.queue.start_job(job_id)
+        self._wait(job_id)
+        _, kwargs = mock_analyze.call_args
+        self.assertEqual(kwargs.get("model"), "gpt-4o-mini")
+        self.assertEqual(analysis._default_session.current_model, previous_model)
 
     def test_cancel_marks_open_items(self):
         job_id = self._create_text_job()

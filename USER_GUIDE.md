@@ -179,12 +179,14 @@ Der Ergebnisvergleich enthält zusätzlich einen **Text-Diff-Tab** mit zeilenwei
 
 ## 10.5 Quellenbelege, Datenbearbeitung und Prompt-Playground
 
-**Quellenbelege prüfen** erkennt Zitate und Referenzen im Ergebnistext und validiert wörtliche Zitate gegen den Quelltext:
+**Quellenbelege prüfen** erkennt Zitate und Referenzen im Ergebnistext und validiert sie gegen die Original-Quelle:
 
 - Verifiziert wird nur, was wörtlich (Whitespace-normalisiert) im Quelltext vorkommt.
 - Nicht gefundene Zitate werden als „nicht gefunden" markiert – mögliche Umformulierung oder frei erfundener Beleg.
-- Seiten-, Abschnitts-, Zeilen- und Zeitangaben sind ohne Quellstruktur „nicht prüfbar" und werden nie als verifiziert markiert.
-- Der Quelltext muss verfügbar sein (derzeit lokale Textdateien wie .txt, .md, .csv).
+- Bei PDFs wird die Quelle seitenweise per OCR geladen: Eine Seitenangabe, die es gibt, gilt als „plausibel"; eine Seitenangabe jenseits der Dokumentlänge als „nicht gefunden" (möglicher erfundener Beleg).
+- Bei YouTube werden die Transkript-Zeitmarken geladen: Zeitangaben innerhalb der Videodauer gelten als „plausibel", darüber hinaus als „nicht gefunden".
+- Bei Webseiten wird der Inhalt erneut abgerufen; lokale Textdateien werden direkt gelesen.
+- Abschnitts- und Zeilenangaben sowie Angaben ohne prüfbare Struktur bleiben „nicht prüfbar" und werden nie als verifiziert markiert.
 
 **Extrahierte Daten bearbeiten** öffnet die strukturierten Daten als JSON-Editor. Die Eingabe wird gegen das `StructuredData`-Schema validiert; vor dem Speichern wird der bisherige Stand als Version gesichert.
 
@@ -202,9 +204,11 @@ In den **Einstellungen** lässt sich der Analyse-Provider wählen:
 
 Bei lokalem Provider werden Inhalte nicht an eine Cloud übertragen, es entstehen keine API-Kosten und die Übertragungsbestätigung weist entsprechend auf „Lokale Verarbeitung" hin. Der lokale Datenschutz-Scan bleibt trotzdem aktiv.
 
+Wichtig: Lokale Server benötigen lokal installierte Modelle (z. B. `llama3:latest`). Steht ein Cloud-Modellname wie `gpt-4o` auf einem lokalen Provider eingestellt, warnt die App in den Einstellungen und vor der Analyse – die Anfrage schlägt auf dem lokalen Server fehl, es gehen aber keine Daten an eine Cloud.
+
 ## 10.7 Updates
 
-**Hilfe → Nach Updates suchen** vergleicht die installierte Version mit dem neuesten GitHub-Release und öffnet auf Wunsch die Release-Seite im Browser. Optional kann in den Einstellungen „Beim Start nach Updates suchen" aktiviert werden (standardmäßig deaktiviert). Die Prüfung sendet nur eine Anfrage an die GitHub-Releases-API – keine Nutzungsdaten. Ein automatisches Einspielen des Updates erfolgt nicht.
+**Hilfe → Nach Updates suchen** vergleicht die installierte Version mit dem neuesten GitHub-Release. Bei einem verfügbaren Update kann das passende Paket für die eigene Plattform direkt in den Downloads-Ordner geladen werden oder die Release-Seite im Browser geöffnet werden. Die Installation erfolgt immer manuell – die App ersetzt sich nicht selbst. Optional kann in den Einstellungen „Beim Start nach Updates suchen" aktiviert werden (standardmäßig deaktiviert). Die Prüfung sendet nur eine Anfrage an die GitHub-Releases-API – keine Nutzungsdaten.
 
 ## 11. Analyse-Historie
 

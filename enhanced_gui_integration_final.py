@@ -1428,13 +1428,36 @@ class EnhancedGui(BaseGui):
                   wraplength=380, justify=tk.LEFT,
                   foreground="#555").pack(anchor=tk.W, pady=(4, 0))
 
+        model_warning_var = tk.StringVar(value="")
+        ttk.Label(provider_frame, textvariable=model_warning_var,
+                  wraplength=380, justify=tk.LEFT,
+                  foreground="#a06000").pack(anchor=tk.W, pady=(2, 0))
+
+        def refresh_model_warning(_event=None):
+            from providers import get_provider, looks_like_cloud_model
+            pid = name_to_id.get(provider_var.get(), "openai")
+            provider = get_provider(pid, base_url_var.get().strip() or None)
+            if pid != "openai" and provider and provider.is_local \
+                    and looks_like_cloud_model(local_model_var.get()):
+                model_warning_var.set(
+                    "Warnung: Der Modellname sieht wie ein OpenAI-Cloud-Modell "
+                    "aus und ist auf dem lokalen Server vermutlich nicht "
+                    "installiert. Lokale Server benötigen lokal installierte "
+                    "Modelle (z. B. 'llama3:latest').")
+            else:
+                model_warning_var.set("")
+
         def on_provider_change(_event=None):
             pid = name_to_id.get(provider_var.get(), "openai")
             provider_hint_var.set(PROVIDERS[pid].hint)
             if pid == "ollama" and not base_url_var.get().strip():
                 base_url_var.set(PROVIDERS["ollama"].base_url)
+            refresh_model_warning()
 
         provider_combo.bind("<<ComboboxSelected>>", on_provider_change)
+        local_model_combo.bind("<KeyRelease>", refresh_model_warning)
+        local_model_combo.bind("<<ComboboxSelected>>", refresh_model_warning)
+        refresh_model_warning()
 
         def apply_and_close():
             raw_budget = budget_var.get().strip().replace(",", ".")
@@ -1558,25 +1581,87 @@ class EnhancedGui(BaseGui):
             on_result_saved=lambda: self.results_browser.refresh_results(),
         )
 
-    def _load_source_text(self):
-        """Versucht den Original-Quelltext des aktuellen Ergebnisses zu laden.
+    def _load_source_document(self):
+        """Lädt die Originalquelle des aktuellen Ergebnisses als SourceDocument.
 
-        Nur lokale, textbasierte Dateien werden gelesen; alles andere liefert
-        None (die Belege sind dann ehrlich als 'nicht prüfbar' markiert).
+        Unterstützt lokale Textdateien, PDFs (Seiten via OCR) und
+        YouTube-URLs (Transkript mit Dauer). Websites werden nicht erneut
+        abgerufen – ohne Quelle bleiben Belege ehrlich 'nicht prüfbar'.
+        Kann langsam sein (OCR) – Aufruf nur in Worker-Threads.
         """
+        from evidence import SourceDocument
         result = self.current_result
-        if not result or not result.source_info or not result.source_info.file_path:
+        if not result or not result.source_info:
             return None
-        path = result.source_info.file_path
-        if not os.path.isfile(path):
+        info = result.source_info
+
+        if info.file_path:
+            path = info.file_path
+            if not os.path.isfile(path):
+                return None
+            ext = os.path.splitext(path)[1].lower()
+            try:
+                if ext in (".txt", ".md", ".csv", ".json", ".log", ".xml", ".html"):
+                    text = open(path, "r", encoding="utf-8",
+                                errors="replace").read()
+                    return SourceDocument(text=text)
+                if ext == ".pdf":
+                    return self._load_pdf_source_document(path)
+            except Exception:
+                logger.info("Quelldokument konnte nicht geladen werden: %s",
+                            path, exc_info=True)
+                return None
             return None
-        if os.path.splitext(path)[1].lower() not in (
-                ".txt", ".md", ".csv", ".json", ".log", ".xml", ".html"):
+
+        if info.url and info.type == "youtube":
+            try:
+                from analysis import extract_transkript_entries
+                entries = extract_transkript_entries(info.url)
+                if not entries:
+                    return None
+                text = " ".join(e["text"] for e in entries)
+                duration = max(e["start"] + e["duration"] for e in entries)
+                return SourceDocument(text=text, duration=duration)
+            except Exception:
+                logger.info("YouTube-Transkript für Belegprüfung nicht ladbar",
+                            exc_info=True)
+                return None
+
+        if info.url:
+            try:
+                from analysis import extract_content
+                outcome = extract_content(info.url)
+                if outcome.success:
+                    return SourceDocument(text=outcome.content)
+            except Exception:
+                pass
+        return None
+
+    def _load_pdf_source_document(self, path: str):
+        """Extrahiert PDF-Seiten per OCR für die Belegprüfung.
+
+        Benötigt poppler + tesseract; bei fehlenden Tools oder Fehlern wird
+        None zurückgegeben (Belege bleiben ehrlich 'nicht prüfbar').
+        """
+        from evidence import SourceDocument
+        try:
+            from pdf2image import convert_from_path
+            import pytesseract
+        except ImportError:
             return None
         try:
-            return open(path, "r", encoding="utf-8", errors="replace").read()
-        except OSError:
+            images = convert_from_path(path, dpi=200)
+        except Exception:
             return None
+        pages = []
+        for image in images:
+            try:
+                pages.append(pytesseract.image_to_string(image, lang="deu+eng"))
+            except Exception:
+                pages.append("")
+        if not any(p.strip() for p in pages):
+            return None
+        return SourceDocument(text="\n\n".join(pages), pages=pages)
 
     def _show_evidence_dialog(self):
         """Öffnet die Quellenbeleg-Prüfung für das aktuelle Ergebnis."""
@@ -1591,7 +1676,7 @@ class EnhancedGui(BaseGui):
                            or self.current_result.source_info.url or "")
         EvidenceDialog(
             self.window, self.current_result.content or "",
-            source_loader=self._load_source_text,
+            source_loader=self._load_source_document,
             source_name=source_name,
         )
 
@@ -1642,20 +1727,86 @@ class EnhancedGui(BaseGui):
     def _show_update_result(self, info, silent: bool):
         """Zeigt das Ergebnis der Update-Prüfung an."""
         import webbrowser
-        if info.update_available:
-            if messagebox.askyesno(
-                    "Update verfügbar",
-                    f"Version {info.latest_version} ist verfügbar "
-                    f"(installiert: {info.current_version}).\n\n"
-                    "Release-Seite im Browser öffnen?"):
-                webbrowser.open(info.release_url)
-        elif not silent:
-            if info.error:
-                messagebox.showinfo("Update-Prüfung", info.error)
-            else:
-                messagebox.showinfo(
-                    "Update-Prüfung",
-                    f"Die App ist aktuell (Version {info.current_version}).")
+        if not info.update_available:
+            if not silent:
+                if info.error:
+                    messagebox.showinfo("Update-Prüfung", info.error)
+                else:
+                    messagebox.showinfo(
+                        "Update-Prüfung",
+                        f"Die App ist aktuell (Version {info.current_version}).")
+            return
+
+        from update_checker import pick_platform_asset
+        asset = pick_platform_asset(info)
+
+        dialog = tk.Toplevel(self.window)
+        dialog.title("Update verfügbar")
+        dialog.transient(self.window)
+        dialog.resizable(False, False)
+        frame = ttk.Frame(dialog, padding=15)
+        frame.pack(fill=tk.BOTH, expand=True)
+        ttk.Label(
+            frame,
+            text=f"Version {info.latest_version} ist verfügbar "
+                 f"(installiert: {info.current_version}).",
+            font=("Segoe UI", 11, "bold"),
+        ).pack(anchor=tk.W)
+        if info.release_notes:
+            notes = info.release_notes.strip()
+            preview = notes[:800] + ("…" if len(notes) > 800 else "")
+            note_box = scrolledtext.ScrolledText(frame, height=8, width=60,
+                                                 wrap=tk.WORD)
+            note_box.insert("1.0", preview)
+            note_box.configure(state=tk.DISABLED)
+            note_box.pack(fill=tk.BOTH, expand=True, pady=8)
+
+        progress_var = tk.StringVar(value="")
+        ttk.Label(frame, textvariable=progress_var).pack(anchor=tk.W)
+
+        btn_row = ttk.Frame(frame)
+        btn_row.pack(fill=tk.X, pady=(10, 0))
+
+        def open_page():
+            webbrowser.open(info.release_url)
+            dialog.destroy()
+
+        def download():
+            from update_checker import download_release_asset, open_in_file_manager
+            import threading
+            progress_var.set(f"Lade {asset['name']} herunter …")
+            for widget in btn_row.winfo_children():
+                widget.configure(state=tk.DISABLED)
+
+            def on_progress(received, total):
+                mb = received / 1_048_576
+                text = (f"{mb:.1f} MB von {total / 1_048_576:.1f} MB"
+                        if total else f"{mb:.1f} MB")
+                self.window.after(0, progress_var.set, text)
+
+            def worker():
+                path = download_release_asset(asset, progress=on_progress)
+                self.window.after(0, finish, path)
+
+            def finish(path):
+                if path:
+                    progress_var.set(f"Gespeichert: {path}")
+                    open_in_file_manager(path)
+                else:
+                    progress_var.set("Download fehlgeschlagen.")
+                    for widget in btn_row.winfo_children():
+                        widget.configure(state=tk.NORMAL)
+
+            threading.Thread(target=worker, daemon=True).start()
+
+        ttk.Button(btn_row, text="Release-Seite öffnen",
+                   command=open_page).pack(side=tk.LEFT)
+        if asset:
+            ttk.Button(btn_row, text=f"Herunterladen ({asset['name']})",
+                       command=download).pack(side=tk.LEFT, padx=8)
+        ttk.Button(btn_row, text="Schließen",
+                   command=dialog.destroy).pack(side=tk.RIGHT)
+        dialog.bind("<Escape>", lambda _e: dialog.destroy())
 
     def _playground_analyze(self, content, prompt, model):
         """Analyse-Funktion für den Prompt-Playground (läuft im Worker-Thread)."""

@@ -371,7 +371,7 @@ class BatchQueue:
         if scan_text(content).has_findings:
             from analysis import AnalysisOutcome, AnalysisError
             return AnalysisOutcome(error=AnalysisError(
-                AnalysisErrorCode.INVALID_INPUT,
+                AnalysisErrorCode.PRIVACY_BLOCKED,
                 "Übersprungen: lokale Datenschutzprüfung hat sensible Daten erkannt."
             ))
 
@@ -401,21 +401,14 @@ class BatchQueue:
 
     def _finish_item(self, item: BatchItem, status: str,
                      error_code: Optional[str], error_message: Optional[str]):
-        # Datenschutz-Überspringe werden als 'skipped' markiert.
-        if status == "failed" and error_code == AnalysisErrorCode.INVALID_INPUT.value:
+        # Nur Datenschutz-Überspringe werden als 'skipped' markiert; andere
+        # Fehler (inkl. INVALID_INPUT aus der Extraktion) bleiben 'failed'.
+        if status == "failed" and error_code == AnalysisErrorCode.PRIVACY_BLOCKED.value:
             status = "skipped"
         self._set_item(item.id, status=status, error_code=error_code,
                        error_message=error_message)
 
 
 def _analyze_with_model(job: BatchJob, prompt: str):
-    """Analyse mit dem Job-Modell (fällt auf Session-Modell zurück)."""
-    from analysis import _default_session
-    previous = _default_session.current_model
-    if job.model:
-        _default_session.set_model(job.model)
-    try:
-        return analyze_text(prompt)
-    finally:
-        if job.model:
-            _default_session.set_model(previous)
+    """Analyse mit dem Job-Modell, ohne die globale Session zu mutieren."""
+    return analyze_text(prompt, model=job.model)

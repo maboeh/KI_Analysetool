@@ -138,7 +138,7 @@ Tags und Favoriten sind über **Erweiterte Funktionen** erreichbar.
 
 ## Quellenbelege, Daten und Prompt-Playground
 
-- **Quellenbelege prüfen**: Erkennt Zitate und Referenzen (Seiten-, Abschnitts-, Zeilen-, Zeitangaben) im Ergebnis und prüft wörtliche Zitate gegen den Quelltext. Verifiziert wird nur, was wörtlich im Quelltext steht; Seiten- oder Zeitangaben ohne prüfbare Struktur werden als „nicht prüfbar" markiert – erfundene Belege erscheinen als „nicht gefunden". Die Prüfung benötigt den Original-Quelltext (derzeit lokale Textdateien).
+- **Quellenbelege prüfen**: Erkennt Zitate und Referenzen (Seiten-, Abschnitts-, Zeilen-, Zeitangaben) im Ergebnis und prüft sie gegen die Original-Quelle. Verifiziert wird nur, was wörtlich im Quelltext steht. Quellen werden je nach Typ mit Struktur geladen: lokale Textdateien direkt, PDFs seitenweise per OCR, YouTube-Transkripte mit Zeitmarken, Webseiten per erneutem Abruf. Seiten- und Zeitangaben, die in der Quellstruktur existieren, gelten als „plausibel"; Angaben auf nicht vorhandene Seiten oder Zeitpunkte jenseits der Videodauer gelten als „nicht gefunden" (möglicher erfundener Beleg). Ohne prüfbare Struktur bleibt eine Angabe „nicht prüfbar" – sie wird nie als verifiziert markiert.
 - **Extrahierte Daten bearbeiten**: Öffnet die strukturierten Daten eines Ergebnisses als JSON-Editor mit Validierung; vor dem Speichern wird der bisherige Stand als Version gesichert.
 - **Diagramm-Vorschläge**: Analysiert die erste extrahierte Tabelle, erkennt Spaltenrollen (Zahl, Datum, Kategorie, Text) und Fehlwerte und schlägt Diagrammtypen mit Begründung vor.
 - **Prompt-Playground**: Führt denselben Inhalt mit mehreren Prompt-/Modell-Varianten nacheinander aus und zeigt Ergebnisse, Dauer und Tokenverbrauch nebeneinander. Variante pro Zeile im Format `Modell | Prompt`.
@@ -153,9 +153,11 @@ Unter **Erweiterte Funktionen → Einstellungen → Analyse-Provider** kann zwis
 
 Bei lokalem Provider zeigt die Übertragungsbestätigung „Lokale Verarbeitung" und schätzt keine API-Kosten. Token werden weiterhin gezählt.
 
+Lokale Server benötigen lokal installierte Modellnamen (z. B. `llama3:latest` – per „Modelle erkennen" abrufbar). Wird ein Cloud-Modellname wie `gpt-4o` auf einem lokalen Provider eingestellt, warnt die App in den Einstellungen und erneut vor der Analyse; die Anfrage würde auf dem lokalen Server fehlschlagen. Es werden trotzdem keine Daten an einen Cloud-Anbieter gesendet.
+
 ## Updates
 
-Über **Hilfe → Nach Updates suchen** wird die GitHub-Releases-Seite auf eine neuere Version geprüft. In den Einstellungen lässt sich optional „Beim Start nach Updates suchen" aktivieren (standardmäßig aus). Es werden keine Nutzungsdaten übertragen; die Installation erfolgt manuell über die Release-Seite.
+Über **Hilfe → Nach Updates suchen** wird die GitHub-Releases-Seite auf eine neuere Version geprüft. In den Einstellungen lässt sich optional „Beim Start nach Updates suchen" aktivieren (standardmäßig aus). Es werden keine Nutzungsdaten übertragen. Bei einem verfügbaren Update bietet der Dialog zwei Wege: die Release-Seite im Browser öffnen oder das passende Paket für die eigene Plattform in den Downloads-Ordner laden. Installiert wird immer manuell – die App ersetzt oder startet sich nicht selbst.
 
 ## Backup
 

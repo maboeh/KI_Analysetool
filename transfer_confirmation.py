@@ -46,15 +46,18 @@ class TransferContext:
     estimated_input_tokens: int
     budget: dict
     external: bool = True
+    model_warning: Optional[str] = None
 
     @property
     def needs_confirmation(self) -> bool:
-        """Dialog nötig bei Funden, sensiblen Quellen oder Budget-Warnung."""
+        """Dialog nötig bei Funden, sensiblen Quellen, Budget- oder
+        Modell-Warnung."""
         return (
             self.report.has_findings
             or (self.external and self.source_type in _ALWAYS_NOTIFY_SOURCES)
             or self.budget.get("warning", False)
             or self.budget.get("projected_warning", False)
+            or self.model_warning is not None
         )
 
 
@@ -91,10 +94,21 @@ def evaluate_transfer(content: str, source_type: str = "default",
             "projected_warning": projected >= 0.8,
             "projected_exceeded": projected >= 1.0,
         }
+    model_warning = None
     if local:
         provider_name = provider.name if provider else "lokaler Server"
         notice = (f"Der Inhalt wird lokal verarbeitet ({provider_name}). "
                   "Es findet keine Übertragung an einen Cloud-Anbieter statt.")
+        from analysis import _default_session
+        from providers import looks_like_cloud_model
+        if looks_like_cloud_model(_default_session.current_model):
+            model_warning = (
+                f"Das Modell '{_default_session.current_model}' sieht wie ein "
+                "OpenAI-Cloud-Modell aus und ist auf dem lokalen Server "
+                "vermutlich nicht installiert. Lokale Server benötigen lokal "
+                "installierte Modellnamen (z. B. 'llama3:latest') – die "
+                "Anfrage wird wahrscheinlich fehlschlagen. Es werden "
+                "trotzdem keine Daten an einen Cloud-Anbieter gesendet.")
     else:
         notice = TRANSFER_NOTICES.get(source_type, TRANSFER_NOTICES["default"])
     return TransferContext(
@@ -106,6 +120,7 @@ def evaluate_transfer(content: str, source_type: str = "default",
         estimated_input_tokens=estimate["input_tokens"],
         budget=budget,
         external=not local,
+        model_warning=model_warning,
     )
 
 
@@ -150,6 +165,13 @@ def _show_confirmation_dialog(parent, context: TransferContext) -> TransferDecis
 
     ttk.Label(frame, text=context.notice, wraplength=440,
               justify=tk.LEFT).pack(anchor=tk.W, pady=(8, 0))
+
+    if context.model_warning:
+        ttk.Label(
+            frame, text=f"Warnung: {context.model_warning}",
+            wraplength=440, justify=tk.LEFT,
+            foreground="#a06000",
+        ).pack(anchor=tk.W, pady=(8, 0))
 
     if context.report.has_findings:
         counts = context.report.count_by_kind()

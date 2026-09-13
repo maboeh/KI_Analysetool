@@ -4,7 +4,10 @@ import unittest
 from unittest import mock
 
 import analysis
-from providers import PROVIDERS, detect_models, get_provider, build_client
+from providers import (
+    PROVIDERS, detect_models, get_provider, build_client,
+    looks_like_cloud_model,
+)
 
 
 class TestProviderRegistry(unittest.TestCase):
@@ -189,6 +192,25 @@ class TestAnalyzeLocalProvider(unittest.TestCase):
             os.unlink(path)
 
 
+class TestCloudModelHeuristic(unittest.TestCase):
+
+    def test_openai_models_look_like_cloud(self):
+        for name in ("gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo", "o1-preview",
+                     "o3-mini", "chatgpt-4o-latest", "text-embedding-3-small",
+                     "whisper-1", "dall-e-3"):
+            self.assertTrue(looks_like_cloud_model(name), name)
+
+    def test_local_models_do_not(self):
+        for name in ("llama3:latest", "mistral", "qwen2.5:7b",
+                     "phi-4", "gemma2:9b"):
+            self.assertFalse(looks_like_cloud_model(name), name)
+
+    def test_empty_and_none(self):
+        self.assertFalse(looks_like_cloud_model(None))
+        self.assertFalse(looks_like_cloud_model(""))
+        self.assertFalse(looks_like_cloud_model("   "))
+
+
 class TestTransferConfirmationLocal(unittest.TestCase):
 
     def tearDown(self):
@@ -197,8 +219,12 @@ class TestTransferConfirmationLocal(unittest.TestCase):
     def test_local_provider_disables_external_notice(self):
         from transfer_confirmation import evaluate_transfer
         analysis.set_provider("ollama")
-        context = evaluate_transfer("Harmloser Text", source_type="pdf",
-                                    privacy_check=False)
+        analysis.set_model("llama3:latest", allow_unknown=True)
+        try:
+            context = evaluate_transfer("Harmloser Text", source_type="pdf",
+                                        privacy_check=False)
+        finally:
+            analysis.set_model(analysis.DEFAULT_MODEL)
         self.assertFalse(context.external)
         self.assertIn("lokal", context.notice.lower())
         # PDF-Quelle löst bei lokalem Provider keinen Pflichtdialog aus.
@@ -212,6 +238,33 @@ class TestTransferConfirmationLocal(unittest.TestCase):
         self.assertTrue(context.external)
         self.assertIn("OpenAI", context.notice)
         self.assertTrue(context.needs_confirmation)
+
+    def test_cloud_model_on_local_provider_warns(self):
+        """Cloud-Modellname auf lokalem Provider löst eine Warnung aus."""
+        from transfer_confirmation import evaluate_transfer
+        analysis.set_provider("ollama")
+        analysis.set_model("gpt-4o", allow_unknown=True)
+        try:
+            context = evaluate_transfer("Harmloser Text", source_type="file",
+                                        privacy_check=False)
+        finally:
+            analysis.set_model(analysis.DEFAULT_MODEL)
+        self.assertFalse(context.external)
+        self.assertIsNotNone(context.model_warning)
+        self.assertIn("gpt-4o", context.model_warning)
+        self.assertTrue(context.needs_confirmation)
+
+    def test_local_model_on_local_provider_no_warning(self):
+        from transfer_confirmation import evaluate_transfer
+        analysis.set_provider("ollama")
+        analysis.set_model("llama3:latest", allow_unknown=True)
+        try:
+            context = evaluate_transfer("Harmloser Text", source_type="file",
+                                        privacy_check=False)
+        finally:
+            analysis.set_model(analysis.DEFAULT_MODEL)
+        self.assertIsNone(context.model_warning)
+        self.assertFalse(context.needs_confirmation)
 
 
 if __name__ == "__main__":

@@ -36,6 +36,7 @@ class AnalysisErrorCode(Enum):
     UNSAFE_URL = "unsafe_url"
     EXTRACTION_FAILED = "extraction_failed"
     CANCELLED = "cancelled"
+    PRIVACY_BLOCKED = "privacy_blocked"
     PROVIDER_ERROR = "provider_error"
     UNKNOWN = "unknown"
 
@@ -427,6 +428,32 @@ def extract_transkript(youtubelink):
     return " ".join(satz["text"] for satz in transkript) + " "
 
 
+def extract_transkript_entries(youtubelink):
+    """Liefert die rohen Transkript-Einträge mit start/duration.
+
+    Dient der Belegprüfung (evidence.SourceDocument.duration) – anders als
+    extract_transkript bleibt die Zeitinformation erhalten.
+    """
+    if YouTubeTranscriptApi is None:
+        raise RuntimeError("YouTube-Transkript-API nicht verfügbar.")
+
+    parsed = urlparse(youtubelink)
+    video_id = None
+    if parsed.hostname and parsed.hostname.lower() in ("www.youtube.com", "youtube.com"):
+        video_id = parse_qs(parsed.query).get("v", [None])[0]
+    elif parsed.hostname and parsed.hostname.lower() == "youtu.be":
+        video_id = parsed.path.strip("/").split("/")[0] if parsed.path else None
+    if not video_id:
+        raise ValueError(f"Nicht unterstütztes YouTube-URL-Format: {youtubelink}")
+
+    entries = YouTubeTranscriptApi.get_transcript(video_id, languages=['de', 'en'])
+    return [
+        {"text": e["text"], "start": float(e.get("start", 0)),
+         "duration": float(e.get("duration", 0))}
+        for e in entries
+    ]
+
+
 def _extract_readable_text_from_html(html: str) -> str:
     """Reduziert HTML auf lesbaren Haupttext (Navigation, Script, Style entfernt)."""
     from bs4 import BeautifulSoup
@@ -533,18 +560,11 @@ def text_extraction_youtube_website(file_path_or_url):
     return extract_content(file_path_or_url).to_legacy_text()
 
 
-def analyze_text(text: str) -> AnalysisOutcome:
+def analyze_text(text: str, model: Optional[str] = None) -> AnalysisOutcome:
     if not isinstance(text, str) or not text.strip():
         return AnalysisOutcome(error=AnalysisError(
             AnalysisErrorCode.INVALID_INPUT,
             "Bitte geben Sie einen Inhalt für die Analyse ein."
-        ))
-
-    is_valid, _est_tokens, _max_tokens, msg = validate_content_length(text)
-    if not is_valid:
-        return AnalysisOutcome(error=AnalysisError(
-            AnalysisErrorCode.CONTENT_TOO_LONG,
-            msg
         ))
 
     provider = _default_session.current_provider
@@ -553,6 +573,27 @@ def analyze_text(text: str) -> AnalysisOutcome:
             AnalysisErrorCode.INVALID_INPUT,
             "Der Analyse-Provider ist nicht korrekt konfiguriert. Bitte prüfen Sie die Einstellungen."
         ))
+
+    # Modellauflösung ohne Session-Mutation: bekannte Modelle direkt,
+    # unbekannte nur bei lokalem Provider (z. B. Ollama-Modellnamen).
+    local = provider.is_local
+    if model and (model in AVAILABLE_MODELS or local):
+        model_id = model
+        if local and model in AVAILABLE_MODELS:
+            logger.warning(
+                "Lokaler Provider mit Cloud-Modellnamen '%s' – "
+                "prüfen, ob das Modell lokal existiert.", model)
+    else:
+        model_id = _default_session.current_model
+
+    is_valid, _est_tokens, _max_tokens, msg = validate_content_length(
+        text, model=model_id)
+    if not is_valid:
+        return AnalysisOutcome(error=AnalysisError(
+            AnalysisErrorCode.CONTENT_TOO_LONG,
+            msg
+        ))
+
     client, client_error = _build_client(provider)
     if client_error:
         return AnalysisOutcome(error=client_error)
@@ -560,7 +601,7 @@ def analyze_text(text: str) -> AnalysisOutcome:
     try:
         def _call():
             return client.chat.completions.create(
-                model=_default_session.current_model,
+                model=model_id,
                 messages=[{"role": "user", "content": text}]
             )
 
@@ -574,8 +615,7 @@ def analyze_text(text: str) -> AnalysisOutcome:
                 prompt_tokens = raw_prompt_tokens
                 completion_tokens = raw_completion_tokens
                 _default_session.record_usage(
-                    prompt_tokens, completion_tokens,
-                    model=_default_session.current_model)
+                    prompt_tokens, completion_tokens, model=model_id)
 
         return AnalysisOutcome(
             content=response.choices[0].message.content or "",

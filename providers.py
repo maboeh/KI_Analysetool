@@ -103,6 +103,27 @@ def build_client(provider: Provider, api_key: Optional[str] = None):
                   api_key=api_key or "local")
 
 
+# Muster für Modellnamen, die typischerweise nur bei OpenAI existieren.
+_CLOUD_MODEL_PREFIXES = (
+    "gpt-", "o1", "o3", "o4", "chatgpt-", "dall-e", "whisper", "tts-",
+    "text-embedding", "text-davinci", "text-curie", "text-babbage",
+    "text-ada", "davinci", "curie", "babbage", "ada",
+)
+
+
+def looks_like_cloud_model(model: Optional[str]) -> bool:
+    """True, wenn der Modellname wie ein OpenAI-Cloud-Modell aussieht.
+
+    Heuristik: lokale Server (Ollama, LM Studio) verwenden eigene Namen
+    wie `llama3:latest`. Ein Cloud-Name auf einem lokalen Provider
+    schlägt dort meist fehl – die Warnung macht das früh sichtbar.
+    """
+    if not model:
+        return False
+    name = model.strip().lower()
+    return name.startswith(_CLOUD_MODEL_PREFIXES)
+
+
 def detect_models(provider: Provider, timeout: float = 5.0) -> List[str]:
     """Fragt die Modellliste eines OpenAI-kompatiblen Servers ab.
 

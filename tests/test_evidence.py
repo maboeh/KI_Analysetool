@@ -1,8 +1,8 @@
 import unittest
 
 from evidence import (
-    STATUS_NOT_CHECKABLE, STATUS_UNVERIFIED, STATUS_VERIFIED,
-    extract_citations, validate_evidence,
+    STATUS_NOT_CHECKABLE, STATUS_PLAUSIBLE, STATUS_UNVERIFIED,
+    STATUS_VERIFIED, SourceDocument, extract_citations, validate_evidence,
 )
 
 
@@ -71,6 +71,72 @@ class TestValidateEvidence(unittest.TestCase):
     def test_no_citations_empty_report(self):
         report = validate_evidence("Kurzer Text ohne Belege.", "Quelle")
         self.assertEqual(report.citations, [])
+
+
+class TestSourceDocument(unittest.TestCase):
+    """Seiten- und zeitbewusste Belegprüfung (F3)."""
+
+    def _pdf_source(self):
+        return SourceDocument(
+            text="\n\n".join([
+                "Inhalt der ersten Seite mit Details.",
+                "Inhalt der zweiten Seite mit anderen Angaben.",
+                "Inhalt der dritten Seite mit Fazit."]),
+            pages=["Inhalt der ersten Seite mit Details.",
+                   "Inhalt der zweiten Seite mit anderen Angaben.",
+                   "Inhalt der dritten Seite mit Fazit."],
+        )
+
+    def test_quote_verified_with_page_number(self):
+        source = self._pdf_source()
+        result = ("Zitat: „Inhalt der zweiten Seite mit anderen Angaben.“ "
+                  "steht im Dokument.")
+        report = validate_evidence(result, source)
+        quote = next(c for c in report.citations if c.kind == "quote")
+        self.assertEqual(quote.status, STATUS_VERIFIED)
+        self.assertIn("Seite 2", quote.source_excerpt)
+
+    def test_valid_page_reference_is_plausible(self):
+        report = validate_evidence("Siehe Seite 2.", self._pdf_source())
+        page = next(c for c in report.citations if c.kind == "page")
+        self.assertEqual(page.status, STATUS_PLAUSIBLE)
+
+    def test_invalid_page_reference_is_unverified(self):
+        report = validate_evidence("Siehe Seite 99.", self._pdf_source())
+        page = next(c for c in report.citations if c.kind == "page")
+        self.assertEqual(page.status, STATUS_UNVERIFIED)
+        self.assertIn("erfundener Beleg", page.source_excerpt)
+
+    def test_page_reference_without_structure_not_checkable(self):
+        report = validate_evidence(
+            "Siehe Seite 2.", SourceDocument(text="Fließtext ohne Seiten."))
+        page = next(c for c in report.citations if c.kind == "page")
+        self.assertEqual(page.status, STATUS_NOT_CHECKABLE)
+
+    def test_valid_timestamp_is_plausible(self):
+        source = SourceDocument(text="Transkript …", duration=600.0)
+        report = validate_evidence("Ab 05:30 wird das Thema erklärt.", source)
+        ts = next(c for c in report.citations if c.kind == "timestamp")
+        self.assertEqual(ts.status, STATUS_PLAUSIBLE)
+
+    def test_timestamp_beyond_duration_is_unverified(self):
+        source = SourceDocument(text="Transkript …", duration=600.0)
+        report = validate_evidence("Bei 15:00 passiert etwas.", source)
+        ts = next(c for c in report.citations if c.kind == "timestamp")
+        self.assertEqual(ts.status, STATUS_UNVERIFIED)
+        self.assertIn("erfundener Beleg", ts.source_excerpt)
+
+    def test_timestamp_without_duration_not_checkable(self):
+        report = validate_evidence("Bei 05:30 passiert etwas.", "Nur Text.")
+        ts = next(c for c in report.citations if c.kind == "timestamp")
+        self.assertEqual(ts.status, STATUS_NOT_CHECKABLE)
+
+    def test_plain_string_source_still_works(self):
+        report = validate_evidence(
+            "Zitat: „Ein langer wörtlicher Satz aus der Quelle\"",
+            "Vorher. Ein langer wörtlicher Satz aus der Quelle. Nachher.")
+        quote = next(c for c in report.citations if c.kind == "quote")
+        self.assertEqual(quote.status, STATUS_VERIFIED)
 
 
 if __name__ == "__main__":

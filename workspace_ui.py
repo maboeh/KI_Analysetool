@@ -539,6 +539,7 @@ class EvidenceDialog(tk.Toplevel):
     _STATUS_LABELS = {
         "verified": "Verifiziert",
         "unverified": "Nicht gefunden",
+        "plausible": "Plausibel",
         "not_checkable": "Nicht prüfbar",
     }
 
@@ -576,18 +577,24 @@ class EvidenceDialog(tk.Toplevel):
             anchor=tk.E, pady=(6, 0))
 
         self._report = None
-        self.after(10, self._run_check)
+        self._start_loading()
+
+    def _start_loading(self):
+        """Quell-Laden (OCR/Netzwerk) im Hintergrund-Thread ausführen."""
+        import threading
+        self.summary_var.set("Quelle wird geladen und geprüft …")
+        threading.Thread(target=self._run_check, daemon=True).start()
 
     def _run_check(self):
         from evidence import validate_evidence
         try:
-            source_text = self._source_loader() if self._source_loader else None
+            source = self._source_loader() if self._source_loader else None
         except Exception:
-            source_text = None
-        self._report = validate_evidence(self._result_text, source_text)
-        self._populate(source_text)
+            source = None
+        self._report = validate_evidence(self._result_text, source)
+        self.after(0, self._populate, source)
 
-    def _populate(self, source_text):
+    def _populate(self, source):
         report = self._report
         if report is None:
             return
@@ -602,6 +609,7 @@ class EvidenceDialog(tk.Toplevel):
         else:
             hint = (f"{report.verified_count} verifiziert, "
                     f"{report.unverified_count} nicht gefunden, "
+                    f"{report.plausible_count} plausibel, "
                     f"{report.not_checkable_count} nicht prüfbar.")
         self.summary_var.set(hint)
         for index, citation in enumerate(report.citations):
@@ -623,9 +631,14 @@ class EvidenceDialog(tk.Toplevel):
                 f"Quelltext-Auszug:\n\n{citation.source_excerpt}")
         elif citation.status == "unverified":
             self.excerpt.insert("1.0",
-                "Dieses Zitat wurde wörtlich nicht im Quelltext gefunden.\n"
+                "Diese Angabe wurde in der Quelle nicht gefunden.\n"
                 "Mögliche Ursachen: Umformulierung durch das Modell oder "
                 "frei erfundener Beleg – bitte manuell nachprüfen.")
+        elif citation.status == "plausible":
+            self.excerpt.insert("1.0",
+                "Diese Referenz existiert strukturell in der Quelle "
+                "(z. B. Seite oder Zeitpunkt), der Inhalt wurde aber nicht "
+                "gegengeprüft – bitte stichprobenartig verifizieren.")
         else:
             self.excerpt.insert("1.0",
                 "Diese Angabe ist ohne die Original-Quellstruktur nicht "
