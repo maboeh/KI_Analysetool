@@ -14,6 +14,8 @@ exports/
 analysis_history/
 profile.txt
 backups/
-logs/build/
+dist/
+logs/
+build/
 dist/
 *.spec.bak
