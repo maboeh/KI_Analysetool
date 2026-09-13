@@ -37,6 +37,10 @@
 - **Sicherheit:** `security.py` (SSRF-Schutz mit DNS-Auflösung + Path-Validator + redirect-safe requests), `analysis.is_safe_url` nutzt beides
 - **Backup:** `backup_manager.py` (ZIP aus results.db + results/ + manifest.json; Restore validiert Integrität/Zip-Slip und legt vorher ein Sicherungs-Backup an)
 - **Datenschutz:** `privacy_scanner.py` (lokaler PII-/Secret-Scan + Redaction) und `transfer_confirmation.py` (kombinierte Bestätigung vor Provider-Transfer: Hinweis + Funde + Kostenschätzung + Budget)
+- **Batch-Queue:** `batch_queue.py` (persistente Jobs/Items, Pause/Resume/Cancel, 1–4 Worker, Retry nur bei retryable Fehlern, PII-Skip)
+- **Quellenbelege:** `evidence.py` (Zitat-/Referenz-Extraktion + Validierung gegen Quelltext; nur wörtliche Treffer sind „verified")
+- **Smart Charts:** `column_analysis.py` (Spaltenrollen numeric/date/categorical/text, Fehlwert-Handling, begründete Diagrammvorschläge)
+- **Workspace-UI:** `workspace_ui.py` (Projekte, Rezepte, Ergebnis-Editor, Versionen, Batch, Evidence, Daten-Editor, Chart-Vorschläge, Prompt-Playground)
 - **Lernpfad:** `learning_path.py` (geführte Schritte vom Anfänger zum Experten)
 - **Benutzerprofil:** `user_profile.py` (Erfahrungsgrad, Onboarding-Status, Fortschritt)
 - **Prompt-Bibliothek:** `prompt_library.py` (wiederverwendbare Vorlagen mit Erklärungen)

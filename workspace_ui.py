@@ -527,3 +527,393 @@ class BatchDialog(tk.Toplevel):
                 "Job löschen", "Job und Item-Historie löschen?", parent=self):
             self.batch_queue.delete_job(job_id)
             self._refresh()
+
+
+class EvidenceDialog(tk.Toplevel):
+    """Prüft Zitate und Referenzen eines Ergebnisses gegen die Quelle (M8).
+
+    `source_loader` ist ein Callable ohne Argumente, das den Quelltext
+    (oder None) zurückgibt. So bleibt der Dialog frei von Extraktionslogik.
+    """
+
+    _STATUS_LABELS = {
+        "verified": "Verifiziert",
+        "unverified": "Nicht gefunden",
+        "not_checkable": "Nicht prüfbar",
+    }
+
+    def __init__(self, parent, result_text: str, source_loader, source_name: str = ""):
+        super().__init__(parent)
+        self.title("Quellenbelege prüfen")
+        self.geometry("680x460")
+        self.transient(parent)
+        self._result_text = result_text
+        self._source_loader = source_loader
+        self._source_name = source_name
+
+        frame = ttk.Frame(self, padding=10)
+        frame.pack(fill=tk.BOTH, expand=True)
+
+        self.summary_var = tk.StringVar(value="Prüfe Belege …")
+        ttk.Label(frame, textvariable=self.summary_var).pack(anchor=tk.W)
+
+        columns = ("kind", "status", "text")
+        self.tree = ttk.Treeview(frame, columns=columns, show="headings", height=10)
+        self.tree.heading("kind", text="Art")
+        self.tree.heading("status", text="Status")
+        self.tree.heading("text", text="Beleg")
+        self.tree.column("kind", width=80)
+        self.tree.column("status", width=110)
+        self.tree.column("text", width=430)
+        self.tree.pack(fill=tk.BOTH, expand=True, pady=5)
+        self.tree.bind("<<TreeviewSelect>>", self._show_excerpt)
+
+        self.excerpt = scrolledtext.ScrolledText(frame, height=8, wrap=tk.WORD)
+        self.excerpt.pack(fill=tk.BOTH, expand=False)
+        self.excerpt.configure(state=tk.DISABLED)
+
+        ttk.Button(frame, text="Schließen", command=self.destroy).pack(
+            anchor=tk.E, pady=(6, 0))
+
+        self._report = None
+        self.after(10, self._run_check)
+
+    def _run_check(self):
+        from evidence import validate_evidence
+        try:
+            source_text = self._source_loader() if self._source_loader else None
+        except Exception:
+            source_text = None
+        self._report = validate_evidence(self._result_text, source_text)
+        self._populate(source_text)
+
+    def _populate(self, source_text):
+        report = self._report
+        if report is None:
+            return
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+        if not report.citations:
+            self.summary_var.set("Keine Zitate oder Referenzen im Ergebnis gefunden.")
+            return
+        if not report.source_available:
+            hint = (f"Quelle '{self._source_name}' ist nicht mehr verfügbar – "
+                    "Belege können nicht verifiziert werden.")
+        else:
+            hint = (f"{report.verified_count} verifiziert, "
+                    f"{report.unverified_count} nicht gefunden, "
+                    f"{report.not_checkable_count} nicht prüfbar.")
+        self.summary_var.set(hint)
+        for index, citation in enumerate(report.citations):
+            self.tree.insert(
+                "", tk.END, iid=str(index),
+                values=(citation.kind,
+                        self._STATUS_LABELS.get(citation.status, citation.status),
+                        citation.text[:120]))
+
+    def _show_excerpt(self, _event=None):
+        selection = self.tree.selection()
+        if not selection or self._report is None:
+            return
+        citation = self._report.citations[int(selection[0])]
+        self.excerpt.configure(state=tk.NORMAL)
+        self.excerpt.delete("1.0", tk.END)
+        if citation.source_excerpt:
+            self.excerpt.insert("1.0",
+                f"Quelltext-Auszug:\n\n{citation.source_excerpt}")
+        elif citation.status == "unverified":
+            self.excerpt.insert("1.0",
+                "Dieses Zitat wurde wörtlich nicht im Quelltext gefunden.\n"
+                "Mögliche Ursachen: Umformulierung durch das Modell oder "
+                "frei erfundener Beleg – bitte manuell nachprüfen.")
+        else:
+            self.excerpt.insert("1.0",
+                "Diese Angabe ist ohne die Original-Quellstruktur nicht "
+                "automatisch prüfbar (z. B. Seiten- oder Zeitangabe).")
+        self.excerpt.configure(state=tk.DISABLED)
+
+
+class EditDataDialog(tk.Toplevel):
+    """JSON-Editor für die extrahierten strukturierten Daten eines Ergebnisses."""
+
+    def __init__(self, parent, results_manager, result_id: str, on_saved=None):
+        super().__init__(parent)
+        import json
+        self.results_manager = results_manager
+        self.result_id = result_id
+        self.on_saved = on_saved
+        self.title("Extrahierte Daten bearbeiten")
+        self.geometry("640x520")
+        self.transient(parent)
+
+        result = results_manager.load_result(result_id)
+        if result is None:
+            messagebox.showerror("Fehler", "Ergebnis konnte nicht geladen werden.",
+                                 parent=self)
+            self.destroy()
+            return
+        self._result = result
+
+        frame = ttk.Frame(self, padding=10)
+        frame.pack(fill=tk.BOTH, expand=True)
+        ttk.Label(
+            frame,
+            text=("Strukturierte Daten als JSON bearbeiten. Das Format muss dem "
+                  "Schema 'StructuredData' entsprechen (tables, entities, "
+                  "numeric_values, temporal_data, relationships, categories)."),
+            wraplength=600, justify=tk.LEFT,
+        ).pack(anchor=tk.W)
+
+        self.editor = scrolledtext.ScrolledText(frame, wrap=tk.NONE, undo=True)
+        self.editor.pack(fill=tk.BOTH, expand=True, pady=6)
+        self.editor.insert("1.0", json.dumps(
+            result.extracted_data.to_dict(), indent=2, ensure_ascii=False))
+
+        btns = ttk.Frame(frame)
+        btns.pack(fill=tk.X)
+        ttk.Button(btns, text="Speichern", command=self._save).pack(side=tk.RIGHT)
+        ttk.Button(btns, text="Abbrechen", command=self.destroy).pack(
+            side=tk.RIGHT, padx=6)
+        ttk.Button(btns, text="Validieren", command=self._validate).pack(
+            side=tk.LEFT)
+
+    def _parse(self):
+        import json
+        from data_models import StructuredData
+        raw = self.editor.get("1.0", tk.END).strip()
+        data = json.loads(raw)
+        if not isinstance(data, dict):
+            raise ValueError("Oberste Ebene muss ein JSON-Objekt sein.")
+        return StructuredData.from_dict(data)
+
+    def _validate(self):
+        try:
+            parsed = self._parse()
+        except Exception as exc:
+            messagebox.showerror("Ungültig", f"JSON ist nicht valide:\n{exc}",
+                                 parent=self)
+            return
+        messagebox.showinfo(
+            "Valide",
+            f"Gültige Struktur: {len(parsed.tables)} Tabelle(n), "
+            f"{len(parsed.entities)} Entität(en).",
+            parent=self)
+
+    def _save(self):
+        try:
+            self._result.extracted_data = self._parse()
+        except Exception as exc:
+            messagebox.showerror("Ungültig", f"JSON ist nicht valide:\n{exc}",
+                                 parent=self)
+            return
+        if not messagebox.askyesno(
+                "Speichern",
+                "Daten speichern? Der bisherige Stand wird als Version "
+                "im Versionsverlauf gesichert.", parent=self):
+            return
+        if self.results_manager.update_result(self._result):
+            if self.on_saved:
+                self.on_saved()
+            self.destroy()
+        else:
+            messagebox.showerror("Fehler", "Speichern fehlgeschlagen.", parent=self)
+
+
+class ChartSuggestionsDialog(tk.Toplevel):
+    """Zeigt Spaltenrollen und begründete Diagrammvorschläge für eine Tabelle."""
+
+    def __init__(self, parent, table, table_name: str = "Tabelle"):
+        super().__init__(parent)
+        from column_analysis import analyze_columns, suggest_charts
+        self.title(f"Diagramm-Vorschläge – {table_name}")
+        self.geometry("640x460")
+        self.transient(parent)
+
+        frame = ttk.Frame(self, padding=10)
+        frame.pack(fill=tk.BOTH, expand=True)
+
+        ttk.Label(frame, text="Spaltenanalyse",
+                  font=("TkDefaultFont", 10, "bold")).pack(anchor=tk.W)
+        col_tree = ttk.Treeview(
+            frame, columns=("role", "missing", "unique"),
+            show="headings", height=6)
+        col_tree.heading("role", text="Rolle")
+        col_tree.heading("missing", text="Fehlend")
+        col_tree.heading("unique", text="Eindeutig")
+        col_tree.column("role", width=110)
+        col_tree.column("missing", width=90, anchor=tk.CENTER)
+        col_tree.column("unique", width=90, anchor=tk.CENTER)
+        col_tree["displaycolumns"] = ("role", "missing", "unique")
+        # Header als erste Spalte via tags geht nicht – Text stattdessen:
+        col_tree.pack(fill=tk.X, pady=(2, 10))
+        for profile in analyze_columns(table):
+            col_tree.insert("", tk.END, text=profile.header,
+                            values=(profile.role,
+                                    f"{profile.missing}/{profile.total}",
+                                    profile.unique_count))
+        # Header-Spalte sichtbar machen
+        col_tree.configure(show="tree headings")
+        col_tree.heading("#0", text="Spalte")
+        col_tree.column("#0", width=160)
+
+        ttk.Label(frame, text="Vorschläge",
+                  font=("TkDefaultFont", 10, "bold")).pack(anchor=tk.W)
+        sug_tree = ttk.Treeview(
+            frame, columns=("chart", "reason"), show="headings", height=8)
+        sug_tree.heading("chart", text="Diagramm")
+        sug_tree.heading("reason", text="Begründung")
+        sug_tree.column("chart", width=90)
+        sug_tree.column("reason", width=520)
+        sug_tree.pack(fill=tk.BOTH, expand=True, pady=2)
+
+        suggestions = suggest_charts(table)
+        if not suggestions:
+            sug_tree.insert("", tk.END, values=(
+                "–", "Keine geeignete Visualisierung für diese Tabelle gefunden."))
+        for suggestion in suggestions:
+            reason = suggestion.reason
+            if suggestion.missing_value_hint:
+                reason += f" {suggestion.missing_value_hint}"
+            sug_tree.insert("", tk.END, values=(suggestion.chart_type, reason))
+
+        ttk.Button(frame, text="Schließen", command=self.destroy).pack(
+            anchor=tk.E, pady=(8, 0))
+
+
+class PromptPlaygroundDialog(tk.Toplevel):
+    """Vergleicht mehrere Prompt-/Modell-Varianten auf demselben Inhalt (M8).
+
+    `analyze_fn` wird als analyze_fn(content, prompt, model) -> AnalysisOutcome
+    aufgerufen und muss thread-sicher sein (ein Worker-Thread pro Lauf,
+    Läufe sequenziell).
+    """
+
+    def __init__(self, parent, content: str, models, analyze_fn):
+        super().__init__(parent)
+        import threading
+        self._threading = threading
+        self.content = content
+        self.models = list(models)
+        self.analyze_fn = analyze_fn
+        self._cancelled = False
+        self._worker = None
+        self._variants = []
+        self.title("Prompt-Playground")
+        self.geometry("860x560")
+        self.transient(parent)
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
+
+        pane = ttk.Panedwindow(self, orient=tk.HORIZONTAL)
+        pane.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
+
+        left = ttk.Frame(pane, padding=4)
+        right = ttk.Frame(pane, padding=4)
+        pane.add(left, weight=1)
+        pane.add(right, weight=2)
+
+        ttk.Label(left, text="Varianten (eine pro Zeile: Modell | Prompt)",
+                  wraplength=280).pack(anchor=tk.W)
+        self.variant_entry = scrolledtext.ScrolledText(left, height=6, wrap=tk.WORD)
+        self.variant_entry.pack(fill=tk.X, pady=4)
+        default_model = self.models[0] if self.models else "gpt-4o-mini"
+        self.variant_entry.insert("1.0",
+            f"{default_model} | Fasse den Inhalt in drei Sätzen zusammen.\n"
+            f"{default_model} | Liste die wichtigsten Aussagen als Stichpunkte.")
+
+        self.run_btn = ttk.Button(left, text="Alle ausführen", command=self._run)
+        self.run_btn.pack(anchor=tk.W)
+        self.cancel_btn = ttk.Button(left, text="Abbrechen",
+                                     command=self._cancel, state=tk.DISABLED)
+        self.cancel_btn.pack(anchor=tk.W, pady=4)
+        self.status_var = tk.StringVar(value="Bereit")
+        ttk.Label(left, textvariable=self.status_var, wraplength=280).pack(
+            anchor=tk.W, pady=4)
+
+        self.results_nb = ttk.Notebook(right)
+        self.results_nb.pack(fill=tk.BOTH, expand=True)
+
+    def _parse_variants(self):
+        variants = []
+        for line in self.variant_entry.get("1.0", tk.END).splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            if "|" in line:
+                model, prompt = (p.strip() for p in line.split("|", 1))
+            else:
+                model, prompt = (self.models[0] if self.models else ""), line
+            if prompt:
+                variants.append((model or "gpt-4o-mini", prompt))
+        return variants
+
+    def _run(self):
+        variants = self._parse_variants()
+        if not variants:
+            messagebox.showinfo("Keine Varianten",
+                                "Bitte mindestens eine Variante angeben.",
+                                parent=self)
+            return
+        if not self.content.strip():
+            messagebox.showinfo("Kein Inhalt",
+                                "Es ist kein Inhalt für den Vergleich geladen.",
+                                parent=self)
+            return
+        self._cancelled = False
+        self.run_btn.configure(state=tk.DISABLED)
+        self.cancel_btn.configure(state=tk.NORMAL)
+        for tab in self.results_nb.tabs():
+            self.results_nb.forget(tab)
+        self._worker = self._threading.Thread(
+            target=self._run_worker, args=(variants,), daemon=True)
+        self._worker.start()
+
+    def _run_worker(self, variants):
+        import time
+        for index, (model, prompt) in enumerate(variants):
+            if self._cancelled:
+                break
+            self.after(0, self.status_var.set,
+                       f"Variante {index + 1}/{len(variants)} läuft ({model}) …")
+            started = time.time()
+            try:
+                outcome = self.analyze_fn(self.content, prompt, model)
+                elapsed = time.time() - started
+                if outcome.success:
+                    total_tokens = ((outcome.prompt_tokens or 0)
+                                    + (outcome.completion_tokens or 0))
+                    text = (outcome.content or "")
+                    meta = (f"Modell: {model}  |  Dauer: {elapsed:.1f}s  |  "
+                            f"Tokens: {total_tokens or '–'}")
+                else:
+                    text = f"Fehler: {getattr(outcome.error, 'user_message', outcome.error)}"
+                    meta = f"Modell: {model}  |  fehlgeschlagen nach {elapsed:.1f}s"
+            except Exception as exc:
+                text = f"Fehler: {exc}"
+                meta = f"Modell: {model}  |  fehlgeschlagen"
+            self.after(0, self._add_result_tab, index, model, prompt, meta, text)
+        self.after(0, self._finish_run, len(variants))
+
+    def _add_result_tab(self, index, model, prompt, meta, text):
+        frame = ttk.Frame(self.results_nb, padding=6)
+        ttk.Label(frame, text=meta).pack(anchor=tk.W)
+        ttk.Label(frame, text=f"Prompt: {prompt}", wraplength=480,
+                  foreground="#555").pack(anchor=tk.W)
+        view = scrolledtext.ScrolledText(frame, wrap=tk.WORD)
+        view.pack(fill=tk.BOTH, expand=True, pady=4)
+        view.insert("1.0", text)
+        view.configure(state=tk.DISABLED)
+        self.results_nb.add(frame, text=f"{index + 1}. {model}")
+
+    def _finish_run(self, total):
+        self.run_btn.configure(state=tk.NORMAL)
+        self.cancel_btn.configure(state=tk.DISABLED)
+        self.status_var.set(
+            "Abgebrochen." if self._cancelled else f"Fertig – {total} Variante(n).")
+
+    def _cancel(self):
+        self._cancelled = True
+        self.status_var.set("Abbruch angefordert …")
+
+    def _on_close(self):
+        self._cancelled = True
+        self.destroy()

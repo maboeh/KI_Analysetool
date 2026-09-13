@@ -532,6 +532,98 @@ def analyze_text(text: str) -> AnalysisOutcome:
         ))
 
 
+def analyze_with_prompt(content: str, prompt: str,
+                        model: Optional[str] = None) -> AnalysisOutcome:
+    """Analysiert Inhalt mit eigenem Prompt und optionalem Modell (Playground)."""
+    if not isinstance(content, str) or not content.strip():
+        return AnalysisOutcome(error=AnalysisError(
+            AnalysisErrorCode.INVALID_INPUT,
+            "Bitte geben Sie einen Inhalt für die Analyse ein."
+        ))
+    if not isinstance(prompt, str) or not prompt.strip():
+        return AnalysisOutcome(error=AnalysisError(
+            AnalysisErrorCode.INVALID_INPUT,
+            "Bitte geben Sie einen Prompt für die Analyse ein."
+        ))
+    model_id = model if model in AVAILABLE_MODELS else get_model()
+
+    is_valid, _est_tokens, _max_tokens, msg = validate_content_length(
+        content, model=model_id)
+    if not is_valid:
+        return AnalysisOutcome(error=AnalysisError(
+            AnalysisErrorCode.CONTENT_TOO_LONG, msg))
+
+    api_key = get_api_key()
+    if not api_key:
+        return AnalysisOutcome(error=AnalysisError(
+            AnalysisErrorCode.MISSING_API_KEY,
+            "Kein API-Schlüssel verfügbar. Bitte hinterlegen Sie einen OpenAI API-Key."
+        ))
+
+    try:
+        client = OpenAI(api_key=api_key)
+
+        def _call():
+            return client.chat.completions.create(
+                model=model_id,
+                messages=[
+                    {"role": "system", "content": prompt},
+                    {"role": "user", "content": content},
+                ]
+            )
+
+        response = _retry_api_call(_call)
+        prompt_tokens = 0
+        completion_tokens = 0
+        if hasattr(response, 'usage') and response.usage:
+            raw_prompt_tokens = response.usage.prompt_tokens
+            raw_completion_tokens = response.usage.completion_tokens
+            if isinstance(raw_prompt_tokens, int) and isinstance(raw_completion_tokens, int):
+                prompt_tokens = raw_prompt_tokens
+                completion_tokens = raw_completion_tokens
+                _default_session.record_usage(prompt_tokens, completion_tokens)
+
+        return AnalysisOutcome(
+            content=response.choices[0].message.content or "",
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens
+        )
+    except RateLimitError:
+        logger.exception("Rate-Limit bei der KI-Analyse")
+        return AnalysisOutcome(error=AnalysisError(
+            AnalysisErrorCode.RATE_LIMITED,
+            "Das API-Limit wurde erreicht. Bitte versuchen Sie es später erneut.",
+            retryable=True
+        ))
+    except APITimeoutError:
+        logger.exception("Zeitüberschreitung bei der KI-Analyse")
+        return AnalysisOutcome(error=AnalysisError(
+            AnalysisErrorCode.TIMED_OUT,
+            "Die Analyse hat zu lange gedauert. Bitte versuchen Sie es erneut.",
+            retryable=True
+        ))
+    except APIConnectionError:
+        logger.exception("Verbindungsfehler bei der KI-Analyse")
+        return AnalysisOutcome(error=AnalysisError(
+            AnalysisErrorCode.CONNECTION_FAILED,
+            "OpenAI ist derzeit nicht erreichbar. Bitte prüfen Sie die Verbindung und versuchen Sie es erneut.",
+            retryable=True
+        ))
+    except APIError:
+        logger.exception("Providerfehler bei der KI-Analyse")
+        return AnalysisOutcome(error=AnalysisError(
+            AnalysisErrorCode.PROVIDER_ERROR,
+            "Der Analyse-Dienst hat einen Fehler gemeldet. Bitte versuchen Sie es erneut.",
+            retryable=True
+        ))
+    except Exception:
+        logger.exception("Unbekannter Fehler bei der KI-Analyse")
+        return AnalysisOutcome(error=AnalysisError(
+            AnalysisErrorCode.UNKNOWN,
+            "Die Analyse ist unerwartet fehlgeschlagen."
+        ))
+
+
 def outcome_from_legacy_text(text: str) -> AnalysisOutcome:
     if text.startswith("Fehler:") or text.startswith("Error:"):
         return AnalysisOutcome(error=AnalysisError(

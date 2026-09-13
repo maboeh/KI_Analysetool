@@ -394,6 +394,23 @@ class EnhancedGui(BaseGui):
             label="Batch-Verarbeitung",
             command=self._show_batch_dialog
         )
+        self.enhanced_menu.add_separator()
+        self.enhanced_menu.add_command(
+            label="Quellenbelege prüfen",
+            command=self._show_evidence_dialog
+        )
+        self.enhanced_menu.add_command(
+            label="Extrahierte Daten bearbeiten",
+            command=self._edit_extracted_data
+        )
+        self.enhanced_menu.add_command(
+            label="Diagramm-Vorschläge",
+            command=self._show_chart_suggestions
+        )
+        self.enhanced_menu.add_command(
+            label="Prompt-Playground",
+            command=self._show_prompt_playground
+        )
         self.enhanced_menu.add_command(
             label="Favoriten anzeigen",
             command=self._show_favorites
@@ -1428,6 +1445,98 @@ class EnhancedGui(BaseGui):
             self.window, self._batch_queue,
             on_result_saved=lambda: self.results_browser.refresh_results(),
         )
+
+    def _load_source_text(self):
+        """Versucht den Original-Quelltext des aktuellen Ergebnisses zu laden.
+
+        Nur lokale, textbasierte Dateien werden gelesen; alles andere liefert
+        None (die Belege sind dann ehrlich als 'nicht prüfbar' markiert).
+        """
+        result = self.current_result
+        if not result or not result.source_info or not result.source_info.file_path:
+            return None
+        path = result.source_info.file_path
+        if not os.path.isfile(path):
+            return None
+        if os.path.splitext(path)[1].lower() not in (
+                ".txt", ".md", ".csv", ".json", ".log", ".xml", ".html"):
+            return None
+        try:
+            return open(path, "r", encoding="utf-8", errors="replace").read()
+        except OSError:
+            return None
+
+    def _show_evidence_dialog(self):
+        """Öffnet die Quellenbeleg-Prüfung für das aktuelle Ergebnis."""
+        if not self.current_result:
+            messagebox.showinfo("Kein Ergebnis",
+                                "Bitte wählen Sie zuerst ein Ergebnis aus.")
+            return
+        from workspace_ui import EvidenceDialog
+        source_name = ""
+        if self.current_result.source_info:
+            source_name = (self.current_result.source_info.file_name
+                           or self.current_result.source_info.url or "")
+        EvidenceDialog(
+            self.window, self.current_result.content or "",
+            source_loader=self._load_source_text,
+            source_name=source_name,
+        )
+
+    def _edit_extracted_data(self):
+        """Öffnet den Editor für die extrahierten strukturierten Daten."""
+        if not self.current_result:
+            messagebox.showinfo("Kein Ergebnis",
+                                "Bitte wählen Sie zuerst ein Ergebnis aus.")
+            return
+        from workspace_ui import EditDataDialog
+        EditDataDialog(
+            self.window, self.results_manager, self.current_result.id,
+            on_saved=self._reload_current_result,
+        )
+
+    def _show_chart_suggestions(self):
+        """Zeigt begründete Diagrammvorschläge für die erste extrahierte Tabelle."""
+        if not self.current_result:
+            messagebox.showinfo("Kein Ergebnis",
+                                "Bitte wählen Sie zuerst ein Ergebnis aus.")
+            return
+        tables = self.current_result.extracted_data.tables
+        if not tables:
+            messagebox.showinfo("Keine Tabelle",
+                                "Das Ergebnis enthält keine extrahierte Tabelle.")
+            return
+        from workspace_ui import ChartSuggestionsDialog
+        ChartSuggestionsDialog(
+            self.window, tables[0],
+            table_name=tables[0].title or "Tabelle 1",
+        )
+
+    def _playground_analyze(self, content, prompt, model):
+        """Analyse-Funktion für den Prompt-Playground (läuft im Worker-Thread)."""
+        from analysis import analyze_with_prompt
+        return analyze_with_prompt(content, prompt, model=model)
+
+    def _show_prompt_playground(self):
+        """Öffnet den Prompt-Playground mit dem Inhalt des aktuellen Ergebnisses."""
+        content = ""
+        if self.current_result and self.current_result.content:
+            content = self.current_result.content
+        elif hasattr(self, "enhanced_input_tabs"):
+            try:
+                content = self.enhanced_input_tabs.get_current_content() or ""
+            except Exception:
+                content = ""
+        if not content.strip():
+            messagebox.showinfo(
+                "Kein Inhalt",
+                "Bitte laden Sie zuerst ein Ergebnis oder geben Sie Inhalt ein.")
+            return
+        from analysis import AVAILABLE_MODELS
+        from workspace_ui import PromptPlaygroundDialog
+        models = [m["id"] if isinstance(m, dict) else m for m in AVAILABLE_MODELS]
+        PromptPlaygroundDialog(self.window, content, models,
+                               self._playground_analyze)
 
     def _reload_current_result(self):
         """Lädt das aktuelle Ergebnis nach Bearbeitung/Rollback neu."""

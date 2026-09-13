@@ -136,6 +136,13 @@ Tags und Favoriten sind über **Erweiterte Funktionen** erreichbar.
 - Teilergebnisse werden sofort gespeichert. Items, bei denen der lokale Datenschutz-Scan sensible Daten findet, werden übersprungen statt übertragen.
 - Der Vergleich im Ergebnisverlauf enthält zusätzlich einen zeilenweisen Text-Diff-Tab.
 
+## Quellenbelege, Daten und Prompt-Playground
+
+- **Quellenbelege prüfen**: Erkennt Zitate und Referenzen (Seiten-, Abschnitts-, Zeilen-, Zeitangaben) im Ergebnis und prüft wörtliche Zitate gegen den Quelltext. Verifiziert wird nur, was wörtlich im Quelltext steht; Seiten- oder Zeitangaben ohne prüfbare Struktur werden als „nicht prüfbar" markiert – erfundene Belege erscheinen als „nicht gefunden". Die Prüfung benötigt den Original-Quelltext (derzeit lokale Textdateien).
+- **Extrahierte Daten bearbeiten**: Öffnet die strukturierten Daten eines Ergebnisses als JSON-Editor mit Validierung; vor dem Speichern wird der bisherige Stand als Version gesichert.
+- **Diagramm-Vorschläge**: Analysiert die erste extrahierte Tabelle, erkennt Spaltenrollen (Zahl, Datum, Kategorie, Text) und Fehlwerte und schlägt Diagrammtypen mit Begründung vor.
+- **Prompt-Playground**: Führt denselben Inhalt mit mehreren Prompt-/Modell-Varianten nacheinander aus und zeigt Ergebnisse, Dauer und Tokenverbrauch nebeneinander. Variante pro Zeile im Format `Modell | Prompt`.
+
 ## Backup
 
 **Backup erstellen** sichert `results.db` und die lokalen Ergebnisdateien in einem ZIP-Archiv inklusive Manifest mit Formatversion und Dateiliste.

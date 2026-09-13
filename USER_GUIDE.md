@@ -177,6 +177,21 @@ Tags und Favoriten stehen über das Menü **Erweiterte Funktionen** zur Verfügu
 
 Der Ergebnisvergleich enthält zusätzlich einen **Text-Diff-Tab** mit zeilenweisem Unified-Diff zwischen den ersten zwei ausgewählten Ergebnissen.
 
+## 10.5 Quellenbelege, Datenbearbeitung und Prompt-Playground
+
+**Quellenbelege prüfen** erkennt Zitate und Referenzen im Ergebnistext und validiert wörtliche Zitate gegen den Quelltext:
+
+- Verifiziert wird nur, was wörtlich (Whitespace-normalisiert) im Quelltext vorkommt.
+- Nicht gefundene Zitate werden als „nicht gefunden" markiert – mögliche Umformulierung oder frei erfundener Beleg.
+- Seiten-, Abschnitts-, Zeilen- und Zeitangaben sind ohne Quellstruktur „nicht prüfbar" und werden nie als verifiziert markiert.
+- Der Quelltext muss verfügbar sein (derzeit lokale Textdateien wie .txt, .md, .csv).
+
+**Extrahierte Daten bearbeiten** öffnet die strukturierten Daten als JSON-Editor. Die Eingabe wird gegen das `StructuredData`-Schema validiert; vor dem Speichern wird der bisherige Stand als Version gesichert.
+
+**Diagramm-Vorschläge** analysiert die erste extrahierte Tabelle: Spaltenrollen (Zahl, Datum, Kategorie, Text), Fehlwertanteile und daraus begründete Diagrammvorschläge (Linie, Balken, Kreis, Streuung, Histogramm) inklusive Hinweis auf fehlende Werte.
+
+**Prompt-Playground** führt denselben Inhalt mit mehreren Varianten aus – eine pro Zeile im Format `Modell | Prompt`. Die Varianten laufen nacheinander, Ergebnisse erscheinen mit Modell, Dauer und Tokenverbrauch in getrennten Tabs; ein Lauf lässt sich abbrechen. Ergebnisse werden nicht automatisch gespeichert.
+
 ## 11. Analyse-Historie
 
 Die Analyse-Historie hält die Schritte der aktuellen Sitzung einschließlich Folgeaktionen und Elternbeziehungen fest. Sitzungen können als JSON gespeichert werden. Sie ist nicht mit dem persistenten Ergebnisverlauf identisch.
