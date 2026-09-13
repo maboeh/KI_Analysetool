@@ -25,6 +25,7 @@
 - **Enhanced-GUI:** `enhanced_gui_integration_final.py` — erweitert um Excel/Bild/CSV/Multi/Text-Tabs, Ergebnisse, Visualisierung, Export, Browser, Backup, Tags, PDF-Report
 - **Input-Tabs:** `extended_input_tabs.py` — fügt Tabs in bestehendes Notebook ein (Original-Tabs bleiben erhalten)
 - **Analyse:** `analysis.py` — OpenAI-Calls, YouTube/Website-Extraktion, Token/Cost-Tracking
+- **Provider:** `providers.py` — OpenAI-Cloud vs. lokale OpenAI-kompatible Server (Ollama, Custom-URL); `is_local` via Host-Erkennung
 - **Config:** `config.py` — API-Key via Keyring/Env/config.ini (Key-Name: `openai_key`, Fallbacks für alte Namen)
 - **Ergebnisse:** `results_manager.py` (SQLite+JSON, Ergebnisversionen), `results_browser.py`, `results_display.py`, `results_processor.py`
 - **Schema:** `migrations.py` (versionierte SQLite-Migrationen, `schema_migrations`-Tabelle)

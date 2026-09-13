@@ -192,6 +192,16 @@ Der Ergebnisvergleich enthält zusätzlich einen **Text-Diff-Tab** mit zeilenwei
 
 **Prompt-Playground** führt denselben Inhalt mit mehreren Varianten aus – eine pro Zeile im Format `Modell | Prompt`. Die Varianten laufen nacheinander, Ergebnisse erscheinen mit Modell, Dauer und Tokenverbrauch in getrennten Tabs; ein Lauf lässt sich abbrechen. Ergebnisse werden nicht automatisch gespeichert.
 
+## 10.6 Analyse-Provider (lokal oder Cloud)
+
+In den **Einstellungen** lässt sich der Analyse-Provider wählen:
+
+- **OpenAI (Cloud)**: Standard, benötigt den API-Key und verursacht API-Kosten.
+- **Ollama (lokal)**: verbindet einen lokal laufenden Ollama-Server (`http://localhost:11434/v1`). Mit „Modelle erkennen" werden die installierten Modelle geladen; eines davon muss als lokales Modell eingetragen werden.
+- **OpenAI-kompatibel (eigene URL)**: für Server wie LM Studio oder LocalAI. Die App erkennt an der URL, ob der Server lokal läuft (`localhost`/`127.0.0.1`) oder extern ist.
+
+Bei lokalem Provider werden Inhalte nicht an eine Cloud übertragen, es entstehen keine API-Kosten und die Übertragungsbestätigung weist entsprechend auf „Lokale Verarbeitung" hin. Der lokale Datenschutz-Scan bleibt trotzdem aktiv.
+
 ## 11. Analyse-Historie
 
 Die Analyse-Historie hält die Schritte der aktuellen Sitzung einschließlich Folgeaktionen und Elternbeziehungen fest. Sitzungen können als JSON gespeichert werden. Sie ist nicht mit dem persistenten Ergebnisverlauf identisch.

@@ -92,6 +92,8 @@ class AnalysisSession:
 
     def __init__(self, model: str = DEFAULT_MODEL):
         self._model = model if model in AVAILABLE_MODELS else DEFAULT_MODEL
+        self._provider_id = "openai"
+        self._provider_base_url: Optional[str] = None
         self._lock = threading.Lock()
         self.total_tokens_used = 0
         self.total_cost_estimate = 0.0
@@ -102,9 +104,35 @@ class AnalysisSession:
         with self._lock:
             return self._model
 
-    def set_model(self, model: str):
+    @property
+    def current_provider(self):
+        """Aktiver Provider (Provider-Objekt oder None bei ungültiger Konfiguration)."""
+        from providers import get_provider
         with self._lock:
-            if model in AVAILABLE_MODELS:
+            return get_provider(self._provider_id, self._provider_base_url)
+
+    @property
+    def is_local_provider(self) -> bool:
+        provider = self.current_provider
+        return bool(provider and provider.is_local)
+
+    def set_provider(self, provider_id: str, base_url: Optional[str] = None):
+        """Wählt den Analyse-Provider (openai, ollama oder custom mit base_url)."""
+        from providers import PROVIDERS
+        with self._lock:
+            if provider_id not in PROVIDERS:
+                logger.warning("Unbekannter Provider: %s", provider_id)
+                return
+            if provider_id == "custom" and not base_url:
+                logger.warning("Custom-Provider ohne Base-URL abgelehnt")
+                return
+            self._provider_id = provider_id
+            self._provider_base_url = base_url
+            logger.info("Provider gewechselt auf: %s", provider_id)
+
+    def set_model(self, model: str, allow_unknown: bool = False):
+        with self._lock:
+            if model in AVAILABLE_MODELS or (allow_unknown and model):
                 self._model = model
                 logger.info("Modell gewechselt auf: %s", model)
             else:
@@ -126,10 +154,14 @@ class AnalysisSession:
             self.total_tokens_used = 0
             self.total_cost_estimate = 0.0
 
-    def record_usage(self, prompt_tokens: int, completion_tokens: int):
+    def record_usage(self, prompt_tokens: int, completion_tokens: int,
+                     model: Optional[str] = None):
         with self._lock:
             self.total_tokens_used += prompt_tokens + completion_tokens
-            model_info = AVAILABLE_MODELS.get(self._model, AVAILABLE_MODELS[DEFAULT_MODEL])
+            # Unbekannte (z. B. lokale) Modelle haben keine Cloud-Kosten.
+            model_info = AVAILABLE_MODELS.get(
+                model or self._model,
+                {"cost_per_1k_input": 0.0, "cost_per_1k_output": 0.0})
             self.total_cost_estimate += (
                 prompt_tokens * model_info["cost_per_1k_input"] / 1000 +
                 completion_tokens * model_info["cost_per_1k_output"] / 1000
@@ -169,14 +201,55 @@ class AnalysisSession:
 _default_session = AnalysisSession()
 
 
-def set_model(model: str):
-    """Setzt das aktuell verwendete Modell."""
-    _default_session.set_model(model)
+def set_model(model: str, allow_unknown: bool = False):
+    """Setzt das aktuell verwendete Modell.
+
+    allow_unknown=True erlaubt beliebige Modellnamen (für lokale Provider,
+    deren Modelle nicht in AVAILABLE_MODELS stehen).
+    """
+    _default_session.set_model(model, allow_unknown=allow_unknown)
 
 
 def get_model() -> str:
     """Gibt das aktuell verwendete Modell zurück."""
     return _default_session.get_model()
+
+
+def set_provider(provider_id: str, base_url: Optional[str] = None):
+    """Wählt den Analyse-Provider (openai, ollama oder custom mit base_url)."""
+    _default_session.set_provider(provider_id, base_url)
+
+
+def get_provider():
+    """Gibt den aktiven Provider zurück (oder None bei ungültiger Konfiguration)."""
+    return _default_session.current_provider
+
+
+def is_local_provider() -> bool:
+    """True, wenn der aktive Provider Inhalte nur lokal verarbeitet."""
+    return _default_session.is_local_provider
+
+
+def _build_client(provider):
+    """Erzeugt den API-Client für den aktiven Provider.
+
+    Returns:
+        (client, error) – genau eines der beiden ist gesetzt.
+    """
+    from providers import build_client
+    api_key = get_api_key() if provider.requires_api_key else None
+    if provider.requires_api_key and not api_key:
+        return None, AnalysisError(
+            AnalysisErrorCode.MISSING_API_KEY,
+            "Kein API-Schlüssel verfügbar. Bitte hinterlegen Sie einen OpenAI API-Key."
+        )
+    try:
+        return build_client(provider, api_key), None
+    except ValueError as exc:
+        return None, AnalysisError(
+            AnalysisErrorCode.INVALID_INPUT,
+            f"Provider ist nicht korrekt konfiguriert: {exc}"
+        )
 
 
 def get_usage_stats() -> dict:
@@ -212,7 +285,15 @@ def estimate_request_cost(text: str, model: Optional[str] = None,
         Dict mit input_tokens, output_tokens, estimated_cost und model.
     """
     model = model or _default_session.current_model
-    info = AVAILABLE_MODELS.get(model, AVAILABLE_MODELS[DEFAULT_MODEL])
+    if model in AVAILABLE_MODELS:
+        info = AVAILABLE_MODELS[model]
+    elif _default_session.is_local_provider:
+        # Lokale Modelle verursachen keine API-Kosten.
+        info = {"cost_per_1k_input": 0.0, "cost_per_1k_output": 0.0}
+    else:
+        # Externer Provider mit unbekanntem Modell: konservativ mit
+        # Standard-Modellpreisen schätzen statt Kosten zu verschweigen.
+        info = AVAILABLE_MODELS[DEFAULT_MODEL]
     input_tokens = estimate_tokens(text or "")
     cost = (
         input_tokens * info["cost_per_1k_input"] / 1000 +
@@ -238,7 +319,8 @@ def validate_content_length(text: str, model: str = None) -> tuple:
         (is_valid, estimated_tokens, max_tokens, message)
     """
     model = model or _default_session.current_model
-    info = AVAILABLE_MODELS.get(model, AVAILABLE_MODELS[DEFAULT_MODEL])
+    # Unbekannte (lokale) Modelle bekommen ein konservatives Standard-Limit.
+    info = AVAILABLE_MODELS.get(model, {"max_tokens": 32768})
     max_tokens = info["max_tokens"]
     estimated = estimate_tokens(text)
 
@@ -465,16 +547,17 @@ def analyze_text(text: str) -> AnalysisOutcome:
             msg
         ))
 
-    api_key = get_api_key()
-    if not api_key:
+    provider = _default_session.current_provider
+    if provider is None:
         return AnalysisOutcome(error=AnalysisError(
-            AnalysisErrorCode.MISSING_API_KEY,
-            "Kein API-Schlüssel verfügbar. Bitte hinterlegen Sie einen OpenAI API-Key."
+            AnalysisErrorCode.INVALID_INPUT,
+            "Der Analyse-Provider ist nicht korrekt konfiguriert. Bitte prüfen Sie die Einstellungen."
         ))
+    client, client_error = _build_client(provider)
+    if client_error:
+        return AnalysisOutcome(error=client_error)
 
     try:
-        client = OpenAI(api_key=api_key)
-
         def _call():
             return client.chat.completions.create(
                 model=_default_session.current_model,
@@ -490,7 +573,9 @@ def analyze_text(text: str) -> AnalysisOutcome:
             if isinstance(raw_prompt_tokens, int) and isinstance(raw_completion_tokens, int):
                 prompt_tokens = raw_prompt_tokens
                 completion_tokens = raw_completion_tokens
-                _default_session.record_usage(prompt_tokens, completion_tokens)
+                _default_session.record_usage(
+                    prompt_tokens, completion_tokens,
+                    model=_default_session.current_model)
 
         return AnalysisOutcome(
             content=response.choices[0].message.content or "",
@@ -515,7 +600,7 @@ def analyze_text(text: str) -> AnalysisOutcome:
         logger.exception("Verbindungsfehler bei der KI-Analyse")
         return AnalysisOutcome(error=AnalysisError(
             AnalysisErrorCode.CONNECTION_FAILED,
-            "OpenAI ist derzeit nicht erreichbar. Bitte prüfen Sie die Verbindung und versuchen Sie es erneut.",
+            "Der Analyse-Dienst ist derzeit nicht erreichbar. Bitte prüfen Sie die Verbindung und versuchen Sie es erneut.",
             retryable=True
         ))
     except APIError:
@@ -545,7 +630,12 @@ def analyze_with_prompt(content: str, prompt: str,
             AnalysisErrorCode.INVALID_INPUT,
             "Bitte geben Sie einen Prompt für die Analyse ein."
         ))
-    model_id = model if model in AVAILABLE_MODELS else get_model()
+    provider = _default_session.current_provider
+    local = bool(provider and provider.is_local)
+    if model and (model in AVAILABLE_MODELS or local):
+        model_id = model
+    else:
+        model_id = get_model()
 
     is_valid, _est_tokens, _max_tokens, msg = validate_content_length(
         content, model=model_id)
@@ -553,15 +643,16 @@ def analyze_with_prompt(content: str, prompt: str,
         return AnalysisOutcome(error=AnalysisError(
             AnalysisErrorCode.CONTENT_TOO_LONG, msg))
 
-    api_key = get_api_key()
-    if not api_key:
+    if provider is None:
         return AnalysisOutcome(error=AnalysisError(
-            AnalysisErrorCode.MISSING_API_KEY,
-            "Kein API-Schlüssel verfügbar. Bitte hinterlegen Sie einen OpenAI API-Key."
+            AnalysisErrorCode.INVALID_INPUT,
+            "Der Analyse-Provider ist nicht korrekt konfiguriert. Bitte prüfen Sie die Einstellungen."
         ))
+    client, client_error = _build_client(provider)
+    if client_error:
+        return AnalysisOutcome(error=client_error)
 
     try:
-        client = OpenAI(api_key=api_key)
 
         def _call():
             return client.chat.completions.create(
@@ -581,7 +672,8 @@ def analyze_with_prompt(content: str, prompt: str,
             if isinstance(raw_prompt_tokens, int) and isinstance(raw_completion_tokens, int):
                 prompt_tokens = raw_prompt_tokens
                 completion_tokens = raw_completion_tokens
-                _default_session.record_usage(prompt_tokens, completion_tokens)
+                _default_session.record_usage(prompt_tokens, completion_tokens,
+                                              model=model_id)
 
         return AnalysisOutcome(
             content=response.choices[0].message.content or "",
@@ -606,7 +698,7 @@ def analyze_with_prompt(content: str, prompt: str,
         logger.exception("Verbindungsfehler bei der KI-Analyse")
         return AnalysisOutcome(error=AnalysisError(
             AnalysisErrorCode.CONNECTION_FAILED,
-            "OpenAI ist derzeit nicht erreichbar. Bitte prüfen Sie die Verbindung und versuchen Sie es erneut.",
+            "Der Analyse-Dienst ist derzeit nicht erreichbar. Bitte prüfen Sie die Verbindung und versuchen Sie es erneut.",
             retryable=True
         ))
     except APIError:

@@ -143,6 +143,16 @@ Tags und Favoriten sind über **Erweiterte Funktionen** erreichbar.
 - **Diagramm-Vorschläge**: Analysiert die erste extrahierte Tabelle, erkennt Spaltenrollen (Zahl, Datum, Kategorie, Text) und Fehlwerte und schlägt Diagrammtypen mit Begründung vor.
 - **Prompt-Playground**: Führt denselben Inhalt mit mehreren Prompt-/Modell-Varianten nacheinander aus und zeigt Ergebnisse, Dauer und Tokenverbrauch nebeneinander. Variante pro Zeile im Format `Modell | Prompt`.
 
+## Analyse-Provider
+
+Unter **Erweiterte Funktionen → Einstellungen → Analyse-Provider** kann zwischen drei Anbietern gewählt werden:
+
+- **OpenAI (Cloud)**: Standard; benötigt API-Key, es fallen API-Kosten an.
+- **Ollama (lokal)**: OpenAI-kompatibler lokaler Server (Standard-URL `http://localhost:11434/v1`). „Modelle erkennen" liest die installierten Modelle aus; kein API-Key nötig, keine Cloud-Übertragung, keine API-Kosten.
+- **OpenAI-kompatibel (eigene URL)**: beliebiger Server (z. B. LM Studio, LocalAI). Ob Daten das Gerät verlassen, wird am Host der URL erkannt (localhost = lokal).
+
+Bei lokalem Provider zeigt die Übertragungsbestätigung „Lokale Verarbeitung" und schätzt keine API-Kosten. Token werden weiterhin gezählt.
+
 ## Backup
 
 **Backup erstellen** sichert `results.db` und die lokalen Ergebnisdateien in einem ZIP-Archiv inklusive Manifest mit Formatversion und Dateiliste.

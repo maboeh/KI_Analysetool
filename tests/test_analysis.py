@@ -137,9 +137,11 @@ class TestAnalysis(unittest.TestCase):
         self.assertEqual(outcome.content, "")
 
     @patch('analysis.get_api_key', return_value="secret")
-    @patch('analysis.OpenAI')
-    def test_analyze_text_does_not_expose_sdk_error(self, mock_openai, _mock_key):
-        mock_openai.return_value.chat.completions.create.side_effect = ValueError("secret detail")
+    @patch('providers.build_client')
+    def test_analyze_text_does_not_expose_sdk_error(self, mock_build, _mock_key):
+        client = MagicMock()
+        client.chat.completions.create.side_effect = ValueError("secret detail")
+        mock_build.return_value = client
         outcome = analyze_text("Test")
         self.assertFalse(outcome.success)
         self.assertEqual(outcome.error.code, AnalysisErrorCode.UNKNOWN)

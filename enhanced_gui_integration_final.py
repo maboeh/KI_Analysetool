@@ -99,8 +99,14 @@ class EnhancedGui(BaseGui):
         self.privacy_check_enabled = self.user_profile_manager.get_privacy_check_enabled()
 
         # Persistiertes Sitzungsbudget in die Analyse-Session laden
-        from analysis import set_session_budget
+        from analysis import set_session_budget, set_provider, set_model
         set_session_budget(self.user_profile_manager.get_session_budget())
+        provider_id = self.user_profile_manager.get_setting("provider_id", "openai")
+        provider_url = self.user_profile_manager.get_setting("provider_base_url", "") or None
+        set_provider(provider_id, provider_url)
+        local_model = self.user_profile_manager.get_setting("local_model", "")
+        if provider_id != "openai" and local_model:
+            set_model(local_model, allow_unknown=True)
 
         # Initialize base GUI
         super().__init__(window)
@@ -1273,7 +1279,7 @@ class EnhancedGui(BaseGui):
 
         dialog = tk.Toplevel(self.window)
         dialog.title("Einstellungen")
-        dialog.geometry("460x480")
+        dialog.geometry("480x640")
         dialog.transient(self.window)
         dialog.grab_set()
 
@@ -1335,6 +1341,80 @@ class EnhancedGui(BaseGui):
             "Bestätigung erforderlich."
         )
 
+        # --- Provider-Auswahl (M9) ---------------------------------------
+        from providers import PROVIDERS
+        provider_ids = list(PROVIDERS.keys())
+        provider_names = {pid: PROVIDERS[pid].name for pid in provider_ids}
+        name_to_id = {v: k for k, v in provider_names.items()}
+
+        saved_provider = self.user_profile_manager.get_setting("provider_id", "openai")
+        saved_base_url = self.user_profile_manager.get_setting("provider_base_url", "")
+        saved_local_model = self.user_profile_manager.get_setting("local_model", "")
+
+        provider_var = tk.StringVar(
+            value=provider_names.get(saved_provider, provider_names["openai"]))
+        base_url_var = tk.StringVar(
+            value=saved_base_url or PROVIDERS["ollama"].base_url)
+        local_model_var = tk.StringVar(value=saved_local_model)
+
+        provider_frame = ttk.LabelFrame(dialog, text="Analyse-Provider", padding=8)
+        provider_frame.pack(fill=tk.X, padx=20, pady=8)
+
+        provider_combo = ttk.Combobox(
+            provider_frame, textvariable=provider_var, state="readonly",
+            values=list(provider_names.values()), width=32)
+        provider_combo.pack(anchor=tk.W)
+
+        url_row = ttk.Frame(provider_frame)
+        url_row.pack(fill=tk.X, pady=(6, 0))
+        ttk.Label(url_row, text="Base-URL:").pack(side=tk.LEFT)
+        ttk.Entry(url_row, textvariable=base_url_var, width=30).pack(
+            side=tk.LEFT, padx=4)
+
+        model_row = ttk.Frame(provider_frame)
+        model_row.pack(fill=tk.X, pady=(4, 0))
+        ttk.Label(model_row, text="Lokales Modell:").pack(side=tk.LEFT)
+        local_model_combo = ttk.Combobox(
+            model_row, textvariable=local_model_var, width=24)
+        local_model_combo.pack(side=tk.LEFT, padx=4)
+
+        def detect_models():
+            from providers import detect_models, get_provider
+            pid = name_to_id.get(provider_var.get(), "openai")
+            provider = get_provider(pid, base_url_var.get().strip())
+            if provider is None or not provider.base_url:
+                messagebox.showinfo("Kein lokaler Server",
+                                    "Dieser Provider hat keine abfragbare URL.",
+                                    parent=dialog)
+                return
+            models = detect_models(provider)
+            if models:
+                local_model_combo["values"] = models
+                if not local_model_var.get():
+                    local_model_var.set(models[0])
+                self.status_var.set(f"{len(models)} lokale Modelle gefunden")
+            else:
+                messagebox.showinfo(
+                    "Keine Modelle",
+                    "Der Server antwortet nicht oder listet keine Modelle. "
+                    "Läuft z. B. Ollama?", parent=dialog)
+
+        ttk.Button(provider_frame, text="Modelle erkennen",
+                   command=detect_models).pack(anchor=tk.W, pady=(4, 0))
+        provider_hint_var = tk.StringVar(value=PROVIDERS[saved_provider].hint
+                                       if saved_provider in PROVIDERS else "")
+        ttk.Label(provider_frame, textvariable=provider_hint_var,
+                  wraplength=380, justify=tk.LEFT,
+                  foreground="#555").pack(anchor=tk.W, pady=(4, 0))
+
+        def on_provider_change(_event=None):
+            pid = name_to_id.get(provider_var.get(), "openai")
+            provider_hint_var.set(PROVIDERS[pid].hint)
+            if pid == "ollama" and not base_url_var.get().strip():
+                base_url_var.set(PROVIDERS["ollama"].base_url)
+
+        provider_combo.bind("<<ComboboxSelected>>", on_provider_change)
+
         def apply_and_close():
             raw_budget = budget_var.get().strip().replace(",", ".")
             budget_value = None
@@ -1357,8 +1437,17 @@ class EnhancedGui(BaseGui):
             self.user_profile_manager.set_setting("auto_viz_enabled", self.auto_viz_enabled)
             self.user_profile_manager.set_privacy_check_enabled(self.privacy_check_enabled)
             self.user_profile_manager.set_session_budget(budget_value)
-            from analysis import set_session_budget
+            from analysis import set_session_budget, set_provider, set_model
             set_session_budget(budget_value)
+
+            provider_id = name_to_id.get(provider_var.get(), "openai")
+            provider_url = base_url_var.get().strip() or None
+            self.user_profile_manager.set_setting("provider_id", provider_id)
+            self.user_profile_manager.set_setting("provider_base_url", provider_url or "")
+            self.user_profile_manager.set_setting("local_model", local_model_var.get().strip())
+            set_provider(provider_id, provider_url)
+            if provider_id != "openai" and local_model_var.get().strip():
+                set_model(local_model_var.get().strip(), allow_unknown=True)
             self.status_var.set(
                 f"Einstellungen gespeichert (Auto-Save: {'an' if self.auto_save_enabled else 'aus'})"
             )

@@ -443,12 +443,12 @@ class TestResultsProcessorIntegration(unittest.TestCase):
         self.processor = ResultsProcessor()
         
         # Mock only the OpenAI API calls to avoid actual API usage
-        self.openai_patcher = patch('analysis.OpenAI')
-        self.mock_openai_class = self.openai_patcher.start()
+        self.openai_patcher = patch('providers.build_client')
+        self.mock_build_client = self.openai_patcher.start()
         
         # Set up mock OpenAI client
         self.mock_client = Mock()
-        self.mock_openai_class.return_value = self.mock_client
+        self.mock_build_client.return_value = self.mock_client
         
         # Mock the completion response
         mock_response = Mock()

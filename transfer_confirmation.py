@@ -45,13 +45,14 @@ class TransferContext:
     estimated_cost: float
     estimated_input_tokens: int
     budget: dict
+    external: bool = True
 
     @property
     def needs_confirmation(self) -> bool:
         """Dialog nötig bei Funden, sensiblen Quellen oder Budget-Warnung."""
         return (
             self.report.has_findings
-            or self.source_type in _ALWAYS_NOTIFY_SOURCES
+            or (self.external and self.source_type in _ALWAYS_NOTIFY_SOURCES)
             or self.budget.get("warning", False)
             or self.budget.get("projected_warning", False)
         )
@@ -75,6 +76,10 @@ def evaluate_transfer(content: str, source_type: str = "default",
         source_type: Quelltyp (pdf, website, youtube, image, default ...).
         privacy_check: Wenn False, wird der PII-Scan übersprungen.
     """
+    from analysis import get_provider, is_local_provider
+    provider = get_provider()
+    local = is_local_provider()
+
     report = scan_text(content) if privacy_check else PrivacyReport(findings=[])
     estimate = estimate_request_cost(content)
     budget = get_budget_status()
@@ -86,14 +91,21 @@ def evaluate_transfer(content: str, source_type: str = "default",
             "projected_warning": projected >= 0.8,
             "projected_exceeded": projected >= 1.0,
         }
+    if local:
+        provider_name = provider.name if provider else "lokaler Server"
+        notice = (f"Der Inhalt wird lokal verarbeitet ({provider_name}). "
+                  "Es findet keine Übertragung an einen Cloud-Anbieter statt.")
+    else:
+        notice = TRANSFER_NOTICES.get(source_type, TRANSFER_NOTICES["default"])
     return TransferContext(
         content=content,
         source_type=source_type,
-        notice=TRANSFER_NOTICES.get(source_type, TRANSFER_NOTICES["default"]),
+        notice=notice,
         report=report,
         estimated_cost=estimate["estimated_cost"],
         estimated_input_tokens=estimate["input_tokens"],
         budget=budget,
+        external=not local,
     )
 
 
@@ -124,7 +136,8 @@ def _show_confirmation_dialog(parent, context: TransferContext) -> TransferDecis
     result = {"proceed": False, "redacted": False}
 
     dialog = tk.Toplevel(parent)
-    dialog.title("Datenübertragung an OpenAI")
+    dialog.title("Datenübertragung" if context.external
+                 else "Lokale Verarbeitung")
     dialog.transient(parent)
     dialog.grab_set()
     dialog.resizable(False, False)

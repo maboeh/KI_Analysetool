@@ -48,6 +48,7 @@ IMPLEMENTED_FEATURES = frozenset({
     "favorites",
     "follow_up_actions",
     "learning_path",
+    "local_provider",
     "ocr",
     "pdf_report",
     "privacy_scan",
