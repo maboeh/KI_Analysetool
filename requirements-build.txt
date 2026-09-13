@@ -1,0 +1,3 @@
+# Build-Abhängigkeiten (nur für PyInstaller-Packaging, nicht zur Laufzeit)
+-r requirements.txt
+pyinstaller>=6.0,<7

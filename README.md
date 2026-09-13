@@ -118,14 +118,34 @@ Falls `requirements.txt` nicht verfügbar ist:
 
 ```bash
 # Core-Abhängigkeiten
-pip install openai youtube-transcript-api beautifulsoup4 requests reportlab
+pip install openai youtube-transcript-api beautifulsoup4 requests reportlab keyring tkinterdnd2
 
 # Erweiterte Funktionen
-pip install pandas openpyxl pytesseract Pillow matplotlib seaborn plotly spacy python-dateutil
-
-# NLP-Modell für deutsche Texte
-python -m spacy download de_core_news_sm
+pip install pandas openpyxl pytesseract Pillow pdf2image chardet matplotlib seaborn python-dateutil regex
 ```
+
+### Desktop-App bauen (optional)
+
+Die App lässt sich mit PyInstaller als eigenständiges Paket verteilen:
+
+```bash
+pip install -r requirements-build.txt
+python build_app.py
+```
+
+Ergebnis in `dist/`:
+
+- **macOS**: `KI_Analysetool.app` (unsigned — beim ersten Start Rechtsklick → Öffnen)
+- **Windows**: `KI_Analysetool/KI_Analysetool.exe` plus ZIP-Archiv
+- **Linux**: `KI_Analysetool/KI_Analysetool` plus ZIP-Archiv
+
+Die gepackte App speichert Daten (`results.db`, `results/`, `logs/`, `config.ini`) im plattformüblichen Benutzerverzeichnis statt neben der Anwendung:
+
+- macOS: `~/Library/Application Support/KI_Analysetool`
+- Windows: `%APPDATA%/KI_Analysetool`
+- Linux: `~/.local/share/KI_Analysetool`
+
+Ein automatisierter Build für alle drei Plattformen läuft über `.github/workflows/build.yml` (manuell auslösbar oder bei `v*`-Tags).
 
 ## Konfiguration
 

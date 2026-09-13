@@ -1,0 +1,49 @@
+name: Build desktop app
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Tk (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y python3-tk tk-dev
+
+      - name: Install dependencies
+        run: pip install -r requirements-build.txt
+
+      - name: Run tests
+        run: python run_tests.py --group all --timeout 120
+
+      - name: Build with PyInstaller
+        run: python build_app.py
+
+      - name: Upload artifact (macOS)
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: KI_Analysetool-macos
+          path: dist/KI_Analysetool.app
+
+      - name: Upload artifact (Windows/Linux)
+        if: runner.os != 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: KI_Analysetool-${{ runner.os }}
+          path: dist/KI_Analysetool-*.zip

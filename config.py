@@ -51,7 +51,14 @@ def _mask(text):
 
 
 def get_config_path():
-    """Gibt den absoluten Pfad zur Konfigurationsdatei zurück (relativ zu dieser Datei)."""
+    """Gibt den absoluten Pfad zur Konfigurationsdatei zurück.
+
+    Im Frozen-Build liegt die Datei im schreibbaren Benutzer-Datenverzeichnis,
+    in der Entwicklung neben dem Quellcode.
+    """
+    from app_paths import get_data_dir, is_frozen
+    if is_frozen():
+        return str(get_data_dir() / 'config.ini')
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.ini')
 
 

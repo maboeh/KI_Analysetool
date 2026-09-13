@@ -5,6 +5,7 @@
 - **Python:** 3.12+ (getestet mit 3.14)
 - **venv:** `.venv/` liegt im Projekt; `source .venv/bin/activate`
 - **Abhängigkeiten:** `pip install -r requirements.txt`; optional `tesseract` für OCR
+- **Desktop-Build:** `pip install -r requirements-build.txt && .venv/bin/python build_app.py` → `dist/` (PyInstaller; unsigned; Daten im plattformeigenen Benutzerverzeichnis via `app_paths.get_data_dir()`)
 
 ## Verification
 - **Syntax-Check aller Module:** `.venv/bin/python -m py_compile *.py`
@@ -21,6 +22,7 @@
 
 ## Architektur
 - **Einstieg:** `main.py` → `enhanced_gui_integration_final.EnhancedGui` (erbt von `Gui`)
+- **Packaging:** `ki_analysetool.spec` + `build_app.py` (PyInstaller); `app_paths.py` liefert Frozen-Pfade (`get_data_dir` für Schreibdaten, `resource_path` für gebündelte Dateien); CI-Workflow `.github/workflows/build.yml`
 - **Basis-GUI:** `Gui.py` — Tabs Webseite/YouTube/PDF, Prompt-Eingabe, Output
 - **Enhanced-GUI:** `enhanced_gui_integration_final.py` — erweitert um Excel/Bild/CSV/Multi/Text-Tabs, Ergebnisse, Visualisierung, Export, Browser, Backup, Tags, PDF-Report
 - **Input-Tabs:** `extended_input_tabs.py` — fügt Tabs in bestehendes Notebook ein (Original-Tabs bleiben erhalten)

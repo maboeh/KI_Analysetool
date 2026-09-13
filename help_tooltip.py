@@ -133,9 +133,10 @@ def show_help_window(parent, title="KI Analysetool - Hilfe & Dokumentation",
                      help_file: Optional[Path] = None, anchor: Optional[str] = None):
     """Open a non-modal help window showing the user guide."""
     if help_file is None:
-        help_path = Path(__file__).parent / "HELP.md"
+        from app_paths import resource_path
+        help_path = resource_path("HELP.md")
         if not help_path.exists():
-            help_path = Path(__file__).parent / "USER_GUIDE.md"
+            help_path = resource_path("USER_GUIDE.md")
     else:
         help_path = Path(help_file)
 

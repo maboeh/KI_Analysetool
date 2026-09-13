@@ -6,6 +6,12 @@ from pathlib import Path
 
 __version__ = "2.1.0"
 
+# Im Frozen-Build (PyInstaller) in das schreibbare Benutzer-Datenverzeichnis
+# wechseln, damit results.db, results/, logs/ und config.ini dort liegen.
+from app_paths import get_data_dir, is_frozen
+if is_frozen():
+    os.chdir(get_data_dir())
+
 # Configure logging with file handler
 _log_dir = Path("logs")
 _log_dir.mkdir(exist_ok=True)
