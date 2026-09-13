@@ -199,6 +199,7 @@ class EnhancedGui(BaseGui):
 
         # Show onboarding for first-time users
         self.window.after(100, self._maybe_show_onboarding)
+        self.window.after(2000, self._maybe_check_updates)
         
     def _enhance_input_tabs(self):
         """Erweitert das bestehende Input-Notebook um neue Datei-Tabs,
@@ -441,6 +442,11 @@ class EnhancedGui(BaseGui):
         self.help_menu.add_command(
             label="Onboarding erneut starten",
             command=self._show_onboarding
+        )
+        self.help_menu.add_separator()
+        self.help_menu.add_command(
+            label="Nach Updates suchen",
+            command=self._check_for_updates
         )
 
         # Add experience level selector
@@ -1328,6 +1334,21 @@ class EnhancedGui(BaseGui):
             "geprüft. Bei Funden können Sie schwärzen oder abbrechen."
         )
 
+        update_check_var = tk.BooleanVar(
+            value=bool(self.user_profile_manager.get_setting(
+                "update_check_on_start", False)))
+        ttk.Checkbutton(
+            dialog,
+            text="Beim Start nach Updates suchen",
+            variable=update_check_var
+        ).pack(anchor=tk.W, padx=20, pady=5)
+        add_help_indicator(
+            dialog,
+            "Wenn aktiviert, wird beim App-Start einmalig die GitHub-Releases-"
+            "Seite nach einer neueren Version abgefragt. Es werden keine "
+            "Nutzungsdaten übertragen. Standardmäßig deaktiviert."
+        )
+
         budget_frame = ttk.Frame(dialog)
         budget_frame.pack(anchor=tk.W, padx=20, pady=5)
         ttk.Label(budget_frame, text="Sitzungsbudget (USD, leer = unbegrenzt):"
@@ -1436,6 +1457,8 @@ class EnhancedGui(BaseGui):
             self.user_profile_manager.set_setting("auto_save_enabled", self.auto_save_enabled)
             self.user_profile_manager.set_setting("auto_viz_enabled", self.auto_viz_enabled)
             self.user_profile_manager.set_privacy_check_enabled(self.privacy_check_enabled)
+            self.user_profile_manager.set_setting(
+                "update_check_on_start", update_check_var.get())
             self.user_profile_manager.set_session_budget(budget_value)
             from analysis import set_session_budget, set_provider, set_model
             set_session_budget(budget_value)
@@ -1601,6 +1624,39 @@ class EnhancedGui(BaseGui):
             table_name=tables[0].title or "Tabelle 1",
         )
 
+    def _check_for_updates(self, silent: bool = False):
+        """Prüft im Hintergrund, ob eine neuere Release-Version existiert.
+
+        silent=True (Start-Check): nur bei vorhandenem Update eine Meldung.
+        """
+        import threading
+
+        def worker():
+            from update_checker import check_for_update
+            from main import __version__
+            info = check_for_update(__version__)
+            self.window.after(0, self._show_update_result, info, silent)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _show_update_result(self, info, silent: bool):
+        """Zeigt das Ergebnis der Update-Prüfung an."""
+        import webbrowser
+        if info.update_available:
+            if messagebox.askyesno(
+                    "Update verfügbar",
+                    f"Version {info.latest_version} ist verfügbar "
+                    f"(installiert: {info.current_version}).\n\n"
+                    "Release-Seite im Browser öffnen?"):
+                webbrowser.open(info.release_url)
+        elif not silent:
+            if info.error:
+                messagebox.showinfo("Update-Prüfung", info.error)
+            else:
+                messagebox.showinfo(
+                    "Update-Prüfung",
+                    f"Die App ist aktuell (Version {info.current_version}).")
+
     def _playground_analyze(self, content, prompt, model):
         """Analyse-Funktion für den Prompt-Playground (läuft im Worker-Thread)."""
         from analysis import analyze_with_prompt
@@ -1703,6 +1759,11 @@ class EnhancedGui(BaseGui):
         if profile.onboarding_completed or profile.onboarding_skipped:
             return
         self._show_onboarding()
+
+    def _maybe_check_updates(self):
+        """Start-Update-Check, nur wenn der Nutzer ihn explizit aktiviert hat."""
+        if self.user_profile_manager.get_setting("update_check_on_start", False):
+            self._check_for_updates(silent=True)
 
     def _show_onboarding(self):
         """Display a multi-step onboarding wizard."""

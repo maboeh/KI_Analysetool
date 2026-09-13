@@ -202,6 +202,10 @@ In den **Einstellungen** lässt sich der Analyse-Provider wählen:
 
 Bei lokalem Provider werden Inhalte nicht an eine Cloud übertragen, es entstehen keine API-Kosten und die Übertragungsbestätigung weist entsprechend auf „Lokale Verarbeitung" hin. Der lokale Datenschutz-Scan bleibt trotzdem aktiv.
 
+## 10.7 Updates
+
+**Hilfe → Nach Updates suchen** vergleicht die installierte Version mit dem neuesten GitHub-Release und öffnet auf Wunsch die Release-Seite im Browser. Optional kann in den Einstellungen „Beim Start nach Updates suchen" aktiviert werden (standardmäßig deaktiviert). Die Prüfung sendet nur eine Anfrage an die GitHub-Releases-API – keine Nutzungsdaten. Ein automatisches Einspielen des Updates erfolgt nicht.
+
 ## 11. Analyse-Historie
 
 Die Analyse-Historie hält die Schritte der aktuellen Sitzung einschließlich Folgeaktionen und Elternbeziehungen fest. Sitzungen können als JSON gespeichert werden. Sie ist nicht mit dem persistenten Ergebnisverlauf identisch.

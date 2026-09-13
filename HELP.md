@@ -153,6 +153,10 @@ Unter **Erweiterte Funktionen → Einstellungen → Analyse-Provider** kann zwis
 
 Bei lokalem Provider zeigt die Übertragungsbestätigung „Lokale Verarbeitung" und schätzt keine API-Kosten. Token werden weiterhin gezählt.
 
+## Updates
+
+Über **Hilfe → Nach Updates suchen** wird die GitHub-Releases-Seite auf eine neuere Version geprüft. In den Einstellungen lässt sich optional „Beim Start nach Updates suchen" aktivieren (standardmäßig aus). Es werden keine Nutzungsdaten übertragen; die Installation erfolgt manuell über die Release-Seite.
+
 ## Backup
 
 **Backup erstellen** sichert `results.db` und die lokalen Ergebnisdateien in einem ZIP-Archiv inklusive Manifest mit Formatversion und Dateiliste.

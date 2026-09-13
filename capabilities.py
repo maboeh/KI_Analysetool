@@ -51,6 +51,7 @@ IMPLEMENTED_FEATURES = frozenset({
     "local_provider",
     "ocr",
     "packaged_desktop_build",
+    "update_check",
     "pdf_report",
     "privacy_scan",
     "projects",

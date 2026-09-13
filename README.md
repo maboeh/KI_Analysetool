@@ -145,7 +145,18 @@ Die gepackte App speichert Daten (`results.db`, `results/`, `logs/`, `config.ini
 - Windows: `%APPDATA%/KI_Analysetool`
 - Linux: `~/.local/share/KI_Analysetool`
 
-Ein automatisierter Build für alle drei Plattformen läuft über `.github/workflows/build.yml` (manuell auslösbar oder bei `v*`-Tags).
+Ein automatisierter Build für alle drei Plattformen läuft über `.github/workflows/build.yml` (manuell auslösbar oder bei `v*`-Tags). Bei Tag-Pushes wird zusätzlich ein GitHub-Release mit den Build-Artefakten erstellt.
+
+#### Signierung (optional)
+
+Der Build signiert die Pakete automatisch, wenn folgende Secrets/Umgebungsvariablen gesetzt sind — ohne sie bleibt der Build unsigned:
+
+- **macOS**: `CODESIGN_IDENTITY` (z. B. „Developer ID Application: …"), für CI zusätzlich `APPLE_CERTIFICATE` (Base64-P12) + `APPLE_CERTIFICATE_PASSWORD`; Notarisierung via `NOTARY_APPLE_ID`, `NOTARY_TEAM_ID`, `NOTARY_PASSWORD`
+- **Windows**: `SIGNTOOL_CERT` (PFX-Pfad), `SIGNTOOL_PASSWORD`
+
+#### Update-Prüfung
+
+Die App kann auf Wunsch prüfen, ob ein neueres GitHub-Release existiert: **Hilfe → Nach Updates suchen** oder in den Einstellungen „Beim Start nach Updates suchen" (standardmäßig deaktiviert). Es werden keine Nutzungsdaten übertragen.
 
 ## Konfiguration
 
