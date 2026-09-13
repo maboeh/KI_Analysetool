@@ -8,6 +8,7 @@ a non-modal help window that displays the user guide.
 import tkinter as tk
 from tkinter import ttk, scrolledtext
 from pathlib import Path
+import re
 from typing import Optional
 
 
@@ -89,16 +90,41 @@ class HelpTooltipManager:
         cls._destroy_active()
 
 
+def show_context_help(parent, help_text):
+    window = tk.Toplevel(parent)
+    window.title("Kontexthilfe")
+    window.transient(parent.winfo_toplevel())
+    window.resizable(False, False)
+    frame = ttk.Frame(window, padding=15)
+    frame.pack(fill=tk.BOTH, expand=True)
+    ttk.Label(frame, text=help_text, wraplength=420, justify=tk.LEFT).pack(fill=tk.X)
+    close_button = ttk.Button(frame, text="Schließen", command=window.destroy)
+    close_button.pack(anchor=tk.E, pady=(12, 0))
+    window.bind("<Escape>", lambda _event: window.destroy())
+    close_button.focus_set()
+    return window
+
+
 def add_help_indicator(parent, help_text, delay=500):
     """
     Add a small '?' label next to the parent widget that shows a tooltip
     after the user hovers for `delay` milliseconds.
     """
-    indicator = ttk.Label(parent, text="?", foreground="blue", cursor="question_arrow")
+    indicator = ttk.Button(
+        parent,
+        text="?",
+        width=2,
+        cursor="question_arrow",
+        takefocus=True,
+        command=lambda: show_context_help(parent, help_text)
+    )
     indicator.pack(side=tk.LEFT, padx=(2, 0))
 
-    indicator.bind("<Enter>", lambda e: HelpTooltipManager.schedule(parent, help_text, delay, e))
+    indicator.bind("<Enter>", lambda e: HelpTooltipManager.schedule(indicator, help_text, delay, e))
     indicator.bind("<Leave>", lambda e: HelpTooltipManager.hide())
+    indicator.bind("<FocusIn>", lambda e: HelpTooltipManager.schedule(indicator, help_text, 0, e))
+    indicator.bind("<FocusOut>", lambda e: HelpTooltipManager.hide())
+    indicator.bind("<Escape>", lambda e: HelpTooltipManager.hide())
 
     return indicator
 
@@ -145,8 +171,26 @@ def show_help_window(parent, title="KI Analysetool - Hilfe & Dokumentation",
         content = "Die Dokumentation wurde nicht gefunden.\nBitte legen Sie HELP.md oder USER_GUIDE.md an."
 
     text_widget.config(state=tk.NORMAL)
-    text_widget.insert(tk.END, content)
+    text_widget.tag_configure("heading1", font=("Segoe UI", 16, "bold"), spacing1=12, spacing3=6)
+    text_widget.tag_configure("heading2", font=("Segoe UI", 13, "bold"), spacing1=10, spacing3=4)
+    text_widget.tag_configure("heading3", font=("Segoe UI", 11, "bold"), spacing1=8, spacing3=3)
+    sections = {}
+    for line in content.splitlines():
+        heading = re.match(r"^(#{1,3})\s+(.+)$", line)
+        if heading:
+            level = len(heading.group(1))
+            heading_text = heading.group(2).strip()
+            sections[heading_text] = text_widget.index(tk.END)
+            text_widget.insert(tk.END, heading_text + "\n", f"heading{level}")
+            continue
+        rendered = re.sub(r"\[([^]]+)]\([^)]+\)", r"\1", line)
+        rendered = rendered.replace("**", "").replace("`", "")
+        if rendered.startswith("- "):
+            rendered = "• " + rendered[2:]
+        text_widget.insert(tk.END, rendered + "\n")
     text_widget.config(state=tk.DISABLED)
+
+    search_state = {"matches": [], "index": -1}
 
     def find_text():
         query = search_var.get().strip()
@@ -155,28 +199,61 @@ def show_help_window(parent, title="KI Analysetool - Hilfe & Dokumentation",
         text_widget.config(state=tk.NORMAL)
         text_widget.tag_remove("found", "1.0", tk.END)
         start = "1.0"
+        matches = []
         while True:
             pos = text_widget.search(query, start, stopindex=tk.END, nocase=1)
             if not pos:
                 break
             end = f"{pos}+{len(query)}c"
+            matches.append(pos)
             text_widget.tag_add("found", pos, end)
             start = end
+        search_state["matches"] = matches
+        search_state["index"] = 0 if matches else -1
         text_widget.tag_config("found", background="yellow", foreground="black")
         text_widget.config(state=tk.DISABLED)
+        if matches:
+            text_widget.see(matches[0])
+
+    def next_match():
+        if not search_state["matches"]:
+            find_text()
+            return
+        search_state["index"] = (search_state["index"] + 1) % len(search_state["matches"])
+        text_widget.see(search_state["matches"][search_state["index"]])
 
     search_var = tk.StringVar()
     search_entry = ttk.Entry(toolbar, textvariable=search_var, width=20)
     search_entry.pack(side=tk.LEFT, padx=(0, 5))
     search_entry.bind("<Return>", lambda e: find_text())
-    ttk.Button(toolbar, text="Suchen", command=find_text).pack(side=tk.LEFT, padx=(0, 10))
+    ttk.Button(toolbar, text="Suchen", command=find_text).pack(side=tk.LEFT, padx=(0, 5))
+    ttk.Button(toolbar, text="Weiter", command=next_match).pack(side=tk.LEFT, padx=(0, 10))
+
+    section_var = tk.StringVar(value="Abschnitt wählen")
+    section_combo = ttk.Combobox(
+        toolbar,
+        textvariable=section_var,
+        values=list(sections.keys()),
+        state="readonly",
+        width=22
+    )
+    section_combo.pack(side=tk.LEFT, padx=(0, 10))
+
+    def goto_section(_event=None):
+        position = sections.get(section_var.get())
+        if position:
+            text_widget.see(position)
+
+    section_combo.bind("<<ComboboxSelected>>", goto_section)
 
     def goto_top():
         text_widget.see("1.0")
 
     ttk.Button(toolbar, text="Nach oben", command=goto_top).pack(side=tk.LEFT)
 
-    ttk.Button(main_frame, text="Schließen", command=window.destroy).grid(row=2, column=1, sticky=tk.E, pady=(10, 0))
+    close_button = ttk.Button(main_frame, text="Schließen", command=window.destroy)
+    close_button.grid(row=2, column=1, sticky=tk.E, pady=(10, 0))
+    window.bind("<Escape>", lambda _event: window.destroy())
 
     # Optional: jump to a section containing the anchor text
     if anchor:

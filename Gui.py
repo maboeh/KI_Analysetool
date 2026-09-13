@@ -23,6 +23,7 @@ from analysis import (
     analyze_text,
     extract_content,
 )
+from capabilities import MODEL_IDS
 from config import check_api_key_exists, save_api_key, get_api_key
 
 
@@ -288,7 +289,7 @@ class Gui:
         self.model_combobox = ttk.Combobox(
             model_frame,
             textvariable=self.model_var,
-            values=list(AVAILABLE_MODELS.keys()),
+            values=list(MODEL_IDS),
             state="readonly",
             width=18
         )

@@ -11,6 +11,7 @@ GUI_TESTS = {
     "test_excel_export_ui.py",
     "test_extended_input_tabs.py",
     "test_final_gui_integration.py",
+    "test_help_tooltip.py",
     "test_progress_indicator.py",
     "test_results_browser.py",
     "test_results_display.py",

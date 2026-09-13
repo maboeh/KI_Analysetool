@@ -1,212 +1,181 @@
 # KI Analysetool – Hilfe
 
-Willkommen im KI Analysetool! Diese Hilfe erklärt dir das Tool Schritt für Schritt – egal, ob du gerade erst anfängst oder bereits ein erfahrener Nutzer bist.
+## Schnellstart
 
----
+1. Wähle eine Quelle: Text, Webseite, YouTube, PDF, Excel, Bild/PDF, CSV/Text oder Multi-Datei.
+2. Gib Inhalt ein oder wähle eine Datei.
+3. Wähle einen Analysetyp oder verwende einen eigenen Prompt.
+4. Klicke auf **Analyse starten** oder drücke `Strg/Cmd + Enter`.
+5. Nutze das Ergebnis für Folgeaktionen, Visualisierung oder Export.
 
-## Inhaltsverzeichnis
+Für eine sofortige Probe kannst du über **Hilfe → Onboarding erneut starten** einen Beispieltext einsetzen.
 
-1. [Schnellstart für Anfänger](#schnellstart-für-anfänger)
-2. [Erste Analyse in 60 Sekunden](#erste-analyse-in-60-sekunden)
-3. [Die wichtigsten Bereiche der Oberfläche](#die-wichtigsten-bereiche-der-oberfläche)
-4. [Analyse-Typen im Überblick](#analyse-typen-im-überblick)
-5. [Experten-Workflows](#experten-workflows)
-6. [Modellwahl-Leitfaden](#modellwahl-leitfaden)
-7. [Folgeaktionen](#folgeaktionen)
-8. [Daten extrahieren, visualisieren und exportieren](#daten-extrahieren-visualisieren-und-exportieren)
-9. [Ergebnisverlauf und Favoriten](#ergebnisverlauf-und-favoriten)
-10. [Sicherheitshinweise](#sicherheitshinweise)
-11. [Tastaturkürzel](#tastaturkürzel)
-12. [FAQ](#faq)
+## Oberfläche
 
----
+### Inhaltsquellen
 
-## Schnellstart für Anfänger
+Die linke beziehungsweise obere Seite enthält die Eingaben. Auf kleineren Bildschirmen ordnet die App Quellen und Analyse automatisch untereinander an. Der Trenner zwischen beiden Bereichen lässt sich verschieben und wird gespeichert.
 
-Das KI Analysetool hilft dir, Texte, Webseiten, YouTube-Videos, PDFs, Excel- und Bild-Dateien mit KI zu analysieren. Du gibst eine Quelle ein, wählst einen Analyse-Typ und erhältst ein strukturiertes Ergebnis.
+### Analyse und Prompt
 
-**So funktioniert der Grundablauf:**
+- **Prompt senden:** eigener Analyseauftrag; `{text}` dient als Platzhalter.
+- **Zusammenfassung:** kurze Inhaltsübersicht.
+- **Keyword-Extraktion:** zentrale Begriffe.
+- **Sentiment Analyse:** Stimmung und Tonalität.
+- **Themen-Erkennung:** Hauptthemen.
 
-1. **Quelle wählen** – Klicke auf einen Tab (z. B. „Text“, „Webseite“ oder „PDF“).
-2. **Eingabe machen** – Füge Text ein oder lade eine Datei/URL hoch.
-3. **Analyse-Typ wählen** – Wähle im Dropdown z. B. „Zusammenfassung“.
-4. **Analysieren** – Klicke auf „Frage senden“ oder drücke `Strg + Enter`.
-5. **Ergebnis nutzen** – Lies das Ergebnis, führe Folgeaktionen aus oder exportiere es.
+Der Button **Vorlagen** öffnet eine durchsuchbare Prompt-Bibliothek.
 
-> **Tipp:** Fahre mit der Maus über die kleinen blauen „?“-Symbole in der App, um direkt an der Stelle eine Kurzhilfe zu sehen.
+### Ergebnisbereich
 
----
+Hier erscheinen formatierte Analyseergebnisse. Zoom und einklappbare Abschnitte erleichtern das Lesen. Rechts stehen passende Folgeaktionen bereit.
 
-## Erste Analyse in 60 Sekunden
+## Erfahrungsgrad und Lernpfad
 
-1. Klicke auf den Tab **Text**.
-2. Gib folgenden Beispieltext ein:
-   ```
-   Die Digitalisierung verändert die Arbeitswelt. KI und Automatisierung
-   schaffen Effizienzgewinne, erfordern aber neue Kompetenzen.
-   ```
-3. Wähle im Dropdown **Zusammenfassung**.
-4. Klicke auf **Frage senden**.
-5. Nach wenigen Sekunden erscheint eine kurze Zusammenfassung.
+Unter **Ansicht → Erfahrungsgrad ändern** kannst du wählen:
 
-Herzlichen Glückwunsch – du hast deine erste Analyse durchgeführt!
+- **Anfänger:** mehr Platz und sichtbarer Lernpfad.
+- **Fortgeschritten:** ausgewogene Standardansicht.
+- **Experte:** kompakte Ansicht und ausgeblendeter Lernpfad.
 
----
+Die Modi sperren keine Funktionen. Lernfortschritt entsteht nur durch erfolgreich ausgeführte Aktionen, nicht durch das Anzeigen einer Anleitung.
 
-## Die wichtigsten Bereiche der Oberfläche
+## Eingabeformate
 
-| Bereich | Erklärung |
-| --- | --- |
-| **Inhaltsquellen (links)** | Hier wählst du aus, was analysiert werden soll: Text, Webseite, YouTube, PDF, Excel, Bild oder mehrere Dateien. |
-| **Prompt & Analyse-Typ (oben rechts)** | Hier gibst du optional einen eigenen Prompt ein oder wählst einen vordefinierten Analyse-Typ. |
-| **Ergebnisbereich (unten rechts)** | Hier wird das KI-Ergebnis angezeigt. Du kannst zwischen Textanalyse, Visualisierung, Datenexport und Ergebnisverlauf wechseln. |
-| **Folgeaktionen (rechts)** | Nach einer Analyse erscheinen Buttons wie „Zusammenfassen“, „Vertiefen“ oder „Übersetzen“. |
-| **Statusleiste (unten)** | Zeigt an, was gerade passiert („Analyse läuft…“, „Fertig“ usw.). |
+### Text und Web
 
----
+- Direkte Texteingabe
+- öffentliche HTTP-/HTTPS-Webseiten
+- YouTube-Links mit deutschem oder englischem Transkript
 
-## Analyse-Typen im Überblick
+Private und lokale Netzwerkadressen werden blockiert.
 
-| Typ | Wann verwenden? | Beispiel |
-| --- | --- | --- |
-| **Prompt senden** | Wenn du eine ganz eigene Frage an die KI stellen möchtest. | „Nenne die 3 größten Risiken und bewerte deren Wahrscheinlichkeit.“ |
-| **Zusammenfassung** | Lange Texte oder Berichte kürzen. | Ein 20-seitiger Marktbericht auf 3 Sätze reduzieren. |
-| **Keyword-Extraktion** | Wichtige Begriffe und Themen finden. | Begriffe aus einem Artikel extrahieren. |
-| **Sentiment Analyse** | Emotionale Tonalität erkennen. | Kundenfeedback als positiv/neutral/negativ einordnen. |
-| **Themen-Erkennung** | Hauptthemen identifizieren. | Welche Themen werden in einem Interview angesprochen? |
+### Dateien
 
----
+- PDF: `.pdf`
+- Excel: `.xlsx`, `.xls`
+- Bilder: `.png`, `.jpg`, `.jpeg`, `.bmp`, `.tiff`, `.tif`
+- CSV/Text: `.csv`, `.tsv`, `.txt`
 
-## Experten-Workflows
+Dateien können über den Systemdialog oder per Drag & Drop gewählt werden. Falls Drag & Drop auf einem System nicht geladen werden kann, bleibt der Dateidialog verfügbar.
 
-Als erfahrener Nutzer kannst du das Tool für komplexe Aufgaben nutzen:
+## PDF und OCR
 
-### Workflow 1: PDF-Bericht analysieren und visualisieren
+Der Tab **PDF** überträgt die ausgewählte PDF-Datei temporär zu OpenAI. Die App versucht, die Remote-Datei nach Abschluss oder Fehler wieder zu entfernen.
 
-1. PDF im Tab **PDF** hochladen.
-2. Analyse-Typ **Zusammenfassung** wählen.
-3. Nach der Analyse auf **Daten extrahieren** klicken.
-4. Zum Tab **Visualisierung** wechseln und Diagrammtyp wählen.
-5. Diagramm als PNG oder PDF exportieren.
-
-### Workflow 2: Mehrere Ergebnisse vergleichen
-
-1. Führe mehrere Analysen durch (z. B. zwei Webseiten).
-2. Öffne das Menü **Erweiterte Funktionen → Ergebnisse vergleichen**.
-3. Wähle im Ergebnisverlauf zwei Einträge aus und klicke auf **Vergleichen**.
-
-### Workflow 3: Eigene Prompt-Bibliothek
-
-1. Erstelle im Prompt-Feld eigene, gut formulierte Prompts.
-2. Speichere sie extern in einer Textdatei oder nutze die integrierte Vorlagen-Bibliothek über den Button „Vorlagen“.
-3. Wiederkehrende Aufgaben lassen sich so standardisieren.
-
----
-
-## Modellwahl-Leitfaden
-
-Das Tool nutzt OpenAI-Modelle. Die Wahl des Modells beeinflusst Qualität, Geschwindigkeit und Kosten.
-
-| Modell | Einsatzzweck | Geschwindigkeit | Kosten |
-| --- | --- | --- | --- |
-| **GPT-4o mini** | Kurze Texte, Tests, einfache Zusammenfassungen | Sehr schnell | Sehr günstig |
-| **GPT-4o** | Standard für die meisten Analysen | Schnell | Günstig |
-| **GPT-4 Turbo** | Sehr komplexe PDFs, lange Dokumente, tiefgehende Analysen | Langsamer | Teurer |
-
-> **Empfehlung für Anfänger:** Starte mit **GPT-4o**. Es bietet das beste Verhältnis aus Qualität und Kosten.
-
----
+Der Tab **Bild/PDF** nutzt lokale OCR. Dafür müssen Tesseract und passende Sprachpakete installiert sein.
 
 ## Folgeaktionen
 
-Nach einer Analyse kannst du das Ergebnis weiterverarbeiten:
+Je nach Ergebnis stehen unter anderem bereit:
 
-- **Zusammenfassen** – Noch kürzer fassen.
-- **Vertiefen** – Detailliertere Analyse zu einem Aspekt.
-- **Übersetzen** – In eine andere Sprache übersetzen.
-- **Analysieren** – Meta-Analyse oder Muster erkennen.
-- **Daten extrahieren** – Tabellen, Zahlen, Entitäten herausziehen.
-- **Als PDF exportieren** – Ergebnis als PDF speichern.
+- Zusammenfassen
+- Vertiefen
+- Übersetzen
+- Analysieren
+- Einfach erklären
+- Daten extrahieren
+- Als PDF exportieren
+- In Zwischenablage kopieren
 
----
+Fehlgeschlagene Aktionen werden nicht als erfolgreiche Ergebnisse oder Lernschritte gespeichert.
 
-## Daten extrahieren, visualisieren und exportieren
+## Visualisierung
 
-Wenn die KI im Ergebnis Zahlen, Tabellen oder andere strukturierte Daten erkannt hat:
+Unterstützte Diagramme:
 
-1. Klicke auf **Daten extrahieren** (rechte Seite oder Kontextmenü).
-2. Prüfe die extrahierten Daten im Tab **Datenexport**.
-3. Wechsle zum Tab **Visualisierung**, um Diagramme zu erstellen.
-4. Exportiere als **Excel**, **PNG**, **PDF** oder **SVG**.
+- Balken
+- Linie
+- Kreis
+- Streuung
+- Histogramm
 
-> **Hinweis:** Nicht jedes Ergebnis enthält Zahlen. Für Diagramme werden mindestens 2–3 numerische Datenpunkte benötigt.
+Diagramme können als PNG, PDF oder SVG exportiert werden. Dafür müssen geeignete numerische oder tabellarische Daten erkannt worden sein.
 
----
+## Export
 
-## Ergebnisverlauf und Favoriten
+Verfügbar sind:
 
-Alle Analysen werden automatisch gespeichert (sofern Auto-Save aktiviert ist):
+- JSON und Text
+- CSV für tabellarische Daten
+- Excel
+- PDF-Ergebnis beziehungsweise PDF-Report
+- PNG, PDF und SVG für Diagramme
+- Export mehrerer ausgewählter Ergebnisse
 
-- **Ergebnisverlauf-Tab:** Durchsuche, filtere und verwalte gespeicherte Ergebnisse.
-- **Favoriten:** Markiere wichtige Ergebnisse über **Erweiterte Funktionen → Favoriten anzeigen**.
-- **Tags:** Ordne Ergebnisse mit Tags wie `projekt-x`, `q4-2024`, `sentiment` zu.
+HTML-Diagrammexport, Batch-Diagrammexport, Dashboard-Templates und Pivot-Templates sind derzeit nicht verfügbar.
 
----
+## Ergebnisverlauf
 
-## Sicherheitshinweise
+Im Ergebnisverlauf kannst du:
 
-- Dein **OpenAI API-Key** wird bevorzugt im sicheren OS-Keyring gespeichert.
-- Falls kein Keyring verfügbar ist, wird die `config.ini` verwendet. Diese Datei ist nur für deinen Benutzer lesbar (`chmod 600`).
-- Der API-Key wird **nie in Log-Dateien** gespeichert.
-- URLs werden auf Sicherheit geprüft: Interne IP-Adressen und lokale Netzwerke sind blockiert.
-- Lade keine Dateien hoch, die Passwörter, Schlüssel oder andere Geheimnisse enthalten.
+- suchen und filtern,
+- Ergebnisse öffnen,
+- mehrere Ergebnisse vergleichen,
+- Ergebnisse kombinieren,
+- exportieren oder
+- nach Bestätigung löschen.
 
----
+Tags und Favoriten sind über **Erweiterte Funktionen** erreichbar.
+
+## Backup
+
+**Backup erstellen** sichert `results.db` und die lokalen Ergebnisdateien in einem ZIP-Archiv. **Backup wiederherstellen** ersetzt nach Bestätigung die aktuelle Ergebnisdatenbank und die Ergebnisdateien vollständig.
+
+Automatische tägliche Backups, selektiver Restore und Merge-Restore sind derzeit nicht vorhanden.
+
+## Datenschutz und Sicherheit
+
+- API-Key bevorzugt im Betriebssystem-Keyring
+- maskierte Secret-Muster in Logs
+- SSRF-Schutz für Webseiten
+- erneute Prüfung jedes Redirects
+- keine abschaltbare TLS-Prüfung
+- lokale Speicherung von Ergebnissen und Profil
+- Übertragung des Analyseinhalts an OpenAI
+- temporärer PDF-Dateiupload bei PDF-Analyse
+
+Übertrage keine Passwörter, Schlüssel oder andere Geheimnisse.
 
 ## Tastaturkürzel
 
-| Kürzel | Aktion |
-| --- | --- |
-| `Strg + Enter` | Analyse starten |
-| `Strg + S` | Aktuelle Notiz/Ergebnis speichern |
-| `Strg + E` | Aktuelles Ergebnis als PDF exportieren |
-| `Strg + F` | Favoriten anzeigen |
+- `Strg/Cmd + Enter`: Analyse starten
+- `Strg/Cmd + S`: aktuelles Ergebnis speichern
+- `Strg/Cmd + E`: Ergebnis als PDF exportieren
+- `Strg/Cmd + F`: Favoriten anzeigen
+- `Escape`: unterstützte Hilfe- und Dialogfenster schließen
 
----
+## Kontexthilfe
 
-## FAQ
+Die kleinen **?**-Buttons funktionieren mit Maus und Tastatur. Beim Fokus erscheint eine Kurzhilfe; ein Klick oder Enter öffnet ein dauerhaft lesbares Hilfefenster.
 
-**F: Die App startet nicht. Was kann ich tun?**
+In dieser Dokumentation kannst du einen Abschnitt auswählen, nach Text suchen und zum nächsten Treffer wechseln.
 
-A: Prüfe:
-1. Python 3.11 oder höher ist installiert: `python --version`
-2. Die virtuelle Umgebung ist aktiviert.
-3. Alle Abhängigkeiten installiert sind: `pip install -r requirements.txt`
-4. Führe `python setup_validation.py` aus.
+## Häufige Probleme
 
-**F: Ich erhalte „API-Key nicht gefunden“.**
+### API-Key fehlt
 
-A: Öffne die App-Einstellungen oder gib den Key beim ersten Start ein. Alternativ setze die Umgebungsvariable `OPENAI_API_KEY`.
+Hinterlege den Key beim Start oder setze die Umgebungsvariable `OPENAI_API_KEY`.
 
-**F: Warum dauert die Analyse so lange?**
+### Analyse dauert lange
 
-A: Große PDFs oder sehr lange Texte brauchen mehr Zeit. Wähle für Tests **GPT-4o mini** oder kürze die Eingabe.
+Große PDFs und OCR benötigen mehr Zeit. Teile große Dateien vorab auf oder verwende für Tests ein schnelleres Modell. Automatisches Chunking ist derzeit nicht verfügbar.
 
-**F: Werden meine Daten an OpenAI gesendet?**
+### Keine Diagramme verfügbar
 
-A: Ja – nur der Text, den du analysieren möchtest, wird an die OpenAI API gesendet. Alle Ergebnisse verbleiben lokal auf deinem Computer.
+Das Ergebnis benötigt geeignete numerische Werte oder Tabellen. Nicht jeder Text kann sinnvoll visualisiert werden.
 
-**F: Was bedeuten die verschiedenen Diagrammtypen?**
+### YouTube funktioniert nicht
 
-A:
-- **Balkendiagramm:** Kategorien vergleichen.
-- **Liniendiagramm:** Verlauf/Trends über Zeit.
-- **Kreisdiagramm:** Anteile darstellen.
-- **Streudiagramm:** Zusammenhänge zwischen zwei Werten.
-- **Histogramm:** Häufigkeitsverteilung.
+Prüfe URL und verfügbare deutsche oder englische Untertitel.
 
----
+### OCR funktioniert nicht
 
-## Noch Fragen?
+Prüfe Tesseract-Installation, Sprachpakete und Bildqualität.
 
-Wenn du ein bestimmtes Feature nicht findest oder ein unerwartetes Verhalten auftritt, schaue in die Log-Datei unter `logs/application.log` und konsultiere das vollständige **Benutzerhandbuch (USER_GUIDE.md)**.
+## Diagnose
+
+- Setup prüfen: `.venv/bin/python setup_validation.py`
+- Gesamttests: `.venv/bin/python run_tests.py --group all`
+- Logdatei: `logs/application.log`
+- Vollständiges Handbuch: `USER_GUIDE.md`

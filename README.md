@@ -140,29 +140,11 @@ python -m spacy download de_core_news_sm
 cp config.ini.example config.ini
 ```
 
-3. **config.ini bearbeiten:**
-```ini
-[API]
-openai_api_key = sk-your-api-key-here
-model = gpt-4o
-max_tokens = 4000
-temperature = 0.7
-
-[ANALYSIS]
-default_language = de
-enable_auto_export = true
-max_file_size_mb = 100
-
-[VISUALIZATION]
-default_chart_style = seaborn
-export_dpi = 300
-interactive_charts = true
-
-[OCR]
-tesseract_path = /usr/bin/tesseract  # Anpassen je nach System
-ocr_language = deu
-preprocessing_enabled = true
-```
+3. **API-Key hinterlegen:**
+   - Beim ersten Start fragt die App nach dem OpenAI API-Key.
+   - Der Key wird bevorzugt im Schlüsselbund des Betriebssystems gespeichert.
+   - Alternativ kann `OPENAI_API_KEY` als Umgebungsvariable gesetzt werden.
+   - `config.ini` ist nur ein Fallback, wenn kein Keyring verfügbar ist.
 
 ### Umgebungsvariablen (Alternative)
 
@@ -174,34 +156,9 @@ set OPENAI_API_KEY=sk-your-api-key-here
 export OPENAI_API_KEY=sk-your-api-key-here
 ```
 
-### Erweiterte Konfigurationsoptionen
+### Einstellungen
 
-#### Datenbank-Einstellungen
-```ini
-[DATABASE]
-results_db_path = ./results.db
-backup_enabled = true
-backup_interval_days = 7
-max_results_stored = 1000
-```
-
-#### Performance-Optimierung
-```ini
-[PERFORMANCE]
-chunk_size_mb = 10
-parallel_processing = true
-max_workers = 4
-cache_enabled = true
-cache_size_mb = 500
-```
-
-#### Sicherheitseinstellungen
-```ini
-[SECURITY]
-api_timeout_seconds = 30
-max_retries = 3
-rate_limit_requests_per_minute = 60
-```
+Über **Erweiterte Funktionen → Einstellungen** lassen sich das automatische Speichern und die automatische Visualisierung konfigurieren. Erfahrungsgrad und Lernpfad werden unter **Ansicht** gesteuert. Weitere Performance-, Cache- oder Datenbankoptionen sind derzeit nicht als Benutzerkonfiguration verfügbar.
 
 **Wichtig:**
 - Der OpenAI API-Key wird bevorzugt im sicheren OS-Keyring gespeichert.
@@ -317,9 +274,9 @@ which tesseract
 - API-Limits und Guthaben überprüfen
 
 **Problem**: Langsame Verarbeitung großer Dateien
-- Datei-Chunk-Größe in config.ini reduzieren
-- Parallel-Processing deaktivieren bei Speicherproblemen
-- Temporäre Dateien regelmäßig löschen
+- Eingabedatei verkleinern oder in mehrere Dateien aufteilen
+- Für Tests ein schnelleres und günstigeres Modell wählen
+- Andere rechenintensive Anwendungen während OCR schließen
 
 #### Datenverarbeitung
 
