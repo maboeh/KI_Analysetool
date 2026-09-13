@@ -129,6 +129,11 @@ class BackupManager:
                 "file_count": len(members),
                 "files": members,
             }
+            try:
+                from migrations import current_version
+                manifest["db_schema_version"] = current_version(str(self.db_path))
+            except Exception:
+                manifest["db_schema_version"] = None
             zf.writestr(BACKUP_MANIFEST_NAME,
                         json.dumps(manifest, ensure_ascii=False, indent=2))
 

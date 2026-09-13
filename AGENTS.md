@@ -26,7 +26,9 @@
 - **Input-Tabs:** `extended_input_tabs.py` — fügt Tabs in bestehendes Notebook ein (Original-Tabs bleiben erhalten)
 - **Analyse:** `analysis.py` — OpenAI-Calls, YouTube/Website-Extraktion, Token/Cost-Tracking
 - **Config:** `config.py` — API-Key via Keyring/Env/config.ini (Key-Name: `openai_key`, Fallbacks für alte Namen)
-- **Ergebnisse:** `results_manager.py` (SQLite+JSON), `results_browser.py`, `results_display.py`, `results_processor.py`
+- **Ergebnisse:** `results_manager.py` (SQLite+JSON, Ergebnisversionen), `results_browser.py`, `results_display.py`, `results_processor.py`
+- **Schema:** `migrations.py` (versionierte SQLite-Migrationen, `schema_migrations`-Tabelle)
+- **Projekte/Rezepte:** `projects.py` (Project CRUD + Ergebnis-Zuordnung), `recipes.py` (Rezept CRUD), `workspace_ui.py` (Dialoge für Projekte, Rezepte, Editieren, Versionen)
 - **Folgeaktionen:** `follow_up_actions.py` (FollowUpActionSystem mit History), `action_buttons.py`
 - **Export:** `excel_exporter.py`, `excel_export_ui.py`, `pdf_report_generator.py`
 - **Visualisierung:** `visualization_panel.py`, `chart_generator.py`

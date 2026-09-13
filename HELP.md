@@ -118,6 +118,13 @@ Im Ergebnisverlauf kannst du:
 
 Tags und Favoriten sind über **Erweiterte Funktionen** erreichbar.
 
+## Projekte und Rezepte
+
+- **Projekte verwalten**: Projekte bündeln Ergebnisse. Sie können erstellt, umbenannt, archiviert und gelöscht werden; gelöschte Projekte lassen die Ergebnisse unangetastet. Ein Ergebnis lässt sich über den Dialog einem Projekt zuordnen.
+- **Rezepte verwalten**: Rezepte speichern Prompt-Vorlage, Modell, Quelltyp sowie geplante Folgeaktionen und Exportformat. „Anwenden" übernimmt Modell und Prompt in die Oberfläche.
+- **Ergebnis bearbeiten**: Der Inhalt eines gespeicherten Ergebnisses kann bearbeitet werden. Vor jeder Änderung wird automatisch eine Version des bisherigen Inhalts gesichert.
+- **Versionsverlauf**: Zeigt alle Versionen eines Ergebnisses, einen Diff zur aktuellen Version und eine Wiederherstellung mit Sicherungsversion.
+
 ## Backup
 
 **Backup erstellen** sichert `results.db` und die lokalen Ergebnisdateien in einem ZIP-Archiv inklusive Manifest mit Formatversion und Dateiliste.

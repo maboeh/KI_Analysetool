@@ -144,6 +144,26 @@ Im Tab **Ergebnisverlauf** können gespeicherte Ergebnisse:
 
 Tags und Favoriten stehen über das Menü **Erweiterte Funktionen** zur Verfügung. Der Vergleich zeigt Inhalte, Metadaten und erkannte Daten mehrerer Ergebnisse.
 
+## 10.1 Projekte
+
+Über **Erweiterte Funktionen → Projekte verwalten** können Projekte angelegt, umbenannt, archiviert und gelöscht werden. Das aktuelle Ergebnis lässt sich über den Dialog einem Projekt zuordnen. Beim Löschen eines Projekts bleiben die Ergebnisse erhalten – nur die Zuordnung wird entfernt.
+
+## 10.2 Analyse-Rezepte
+
+Über **Erweiterte Funktionen → Rezepte verwalten** lassen sich wiederverwendbare Analysekonfigurationen speichern:
+
+- Prompt-Vorlage,
+- Modell,
+- Quelltyp,
+- geplante Folgeaktionen,
+- Exportformat.
+
+„Aus aktuellem Prompt erstellen" übernimmt den gerade eingegebenen Prompt und das gewählte Modell. „Anwenden" lädt Modell und Prompt-Vorlage in die Oberfläche; die geplanten Folgeaktionen werden als Hinweis angezeigt. Die Ausführung von Folgeaktionen und Export erfolgt derzeit manuell.
+
+## 10.3 Ergebnisse bearbeiten und Versionen
+
+Über **Ergebnis bearbeiten** kann der Inhalt eines gespeicherten Ergebnisses geändert werden. Vor jeder Änderung sichert die App automatisch den bisherigen Stand als Version. Der **Versionsverlauf** zeigt alle Versionen, einen zeilenweisen Diff zur aktuellen Version und ermöglicht die Wiederherstellung – wobei auch dann zuerst der aktuelle Stand gesichert wird.
+
 ## 11. Analyse-Historie
 
 Die Analyse-Historie hält die Schritte der aktuellen Sitzung einschließlich Folgeaktionen und Elternbeziehungen fest. Sitzungen können als JSON gespeichert werden. Sie ist nicht mit dem persistenten Ergebnisverlauf identisch.

@@ -8,6 +8,7 @@ of ProcessedResult objects using SQLite for metadata and JSON for content.
 import sqlite3
 import json
 import os
+import uuid
 import zipfile
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
@@ -33,46 +34,9 @@ class ResultsManager:
         self._init_database()
     
     def _init_database(self):
-        """Initialize the SQLite database with required tables."""
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS results (
-                    id TEXT PRIMARY KEY,
-                    title TEXT NOT NULL,
-                    analysis_type TEXT NOT NULL,
-                    source_type TEXT,
-                    source_url TEXT,
-                    source_file_path TEXT,
-                    source_file_name TEXT,
-                    content_preview TEXT,
-                    has_visualizations BOOLEAN DEFAULT FALSE,
-                    has_exportable_data BOOLEAN DEFAULT FALSE,
-                    processing_time REAL,
-                    model_used TEXT,
-                    tokens_used INTEGER,
-                    confidence_score REAL,
-                    tags TEXT,  -- JSON array of tags
-                    created_at TIMESTAMP NOT NULL,
-                    updated_at TIMESTAMP NOT NULL,
-                    json_file_path TEXT NOT NULL
-                )
-            """)
-            
-            # Create indexes for better query performance
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_created_at ON results(created_at)")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_analysis_type ON results(analysis_type)")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_source_type ON results(source_type)")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_tags ON results(tags)")
-
-            # Favoriten-Spalte nachrüsten (falls DB aus älterer Version existiert)
-            try:
-                conn.execute("ALTER TABLE results ADD COLUMN is_favorite BOOLEAN DEFAULT 0")
-            except sqlite3.OperationalError:
-                pass  # Spalte existiert bereits
-
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_is_favorite ON results(is_favorite)")
-
-            conn.commit()
+        """Initialisiert das Schema über das versionierte Migrationsframework."""
+        from migrations import migrate
+        migrate(self.db_path)
     
     def save_result(self, result: ProcessedResult, name: Optional[str] = None) -> str:
         """
@@ -276,7 +240,8 @@ class ResultsManager:
             
             json_file_path = row[0]
             
-            # Delete from database
+            # Delete from database (inkl. zugehöriger Versionen)
+            conn.execute("DELETE FROM result_versions WHERE result_id = ?", (result_id,))
             cursor = conn.execute("DELETE FROM results WHERE id = ?", (result_id,))
             deleted_rows = cursor.rowcount
             conn.commit()
@@ -454,6 +419,7 @@ class ResultsManager:
                 cursor = conn.execute("""
                     UPDATE results SET
                         analysis_type = ?,
+                        content_preview = ?,
                         has_visualizations = ?,
                         has_exportable_data = ?,
                         processing_time = ?,
@@ -465,6 +431,7 @@ class ResultsManager:
                     WHERE id = ?
                 """, (
                     result.metadata.analysis_type,
+                    result.content[:500] + "..." if len(result.content) > 500 else result.content,
                     len(result.visualizations) > 0,
                     result.has_exportable_data(),
                     result.metadata.processing_time,
@@ -610,3 +577,108 @@ class ResultsManager:
                     zf.write(exported, os.path.basename(exported))
 
         return str(zip_path)
+
+    # --- Ergebnis-Versionierung ---
+
+    def save_version(self, result_id: str, content: str, note: str = "") -> Optional[str]:
+        """Speichert eine Inhaltsversion eines Ergebnisses.
+
+        Returns:
+            Versions-ID oder None, wenn das Ergebnis nicht existiert.
+        """
+        if self.load_result(result_id) is None:
+            return None
+        version_id = str(uuid.uuid4())
+        with sqlite3.connect(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT COALESCE(MAX(version_no), 0) + 1 FROM result_versions WHERE result_id = ?",
+                (result_id,)
+            ).fetchone()
+            conn.execute(
+                "INSERT INTO result_versions (id, result_id, version_no, content, note, created_at)"
+                " VALUES (?, ?, ?, ?, ?, ?)",
+                (version_id, result_id, row[0], content, note,
+                 datetime.now().isoformat())
+            )
+            conn.commit()
+        return version_id
+
+    def list_versions(self, result_id: str) -> List[Dict[str, Any]]:
+        """Listet alle Versionen eines Ergebnisses (neueste zuerst)."""
+        with sqlite3.connect(self.db_path) as conn:
+            rows = conn.execute(
+                "SELECT id, version_no, note, created_at, LENGTH(content)"
+                " FROM result_versions WHERE result_id = ? ORDER BY version_no DESC",
+                (result_id,)
+            ).fetchall()
+        return [
+            {
+                "id": row[0],
+                "version_no": row[1],
+                "note": row[2] or "",
+                "created_at": row[3],
+                "size": row[4],
+            }
+            for row in rows
+        ]
+
+    def get_version_content(self, version_id: str) -> Optional[str]:
+        """Gibt den Inhalt einer Version zurück."""
+        with sqlite3.connect(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT content FROM result_versions WHERE id = ?", (version_id,)
+            ).fetchone()
+        return row[0] if row else None
+
+    def update_result_content(self, result_id: str, new_content: str,
+                              note: str = "Vor Bearbeitung") -> bool:
+        """Aktualisiert den Inhalt eines Ergebnisses mit automatischer Vorversion.
+
+        Der bisherige Inhalt wird als Version gesichert, bevor der neue Inhalt
+        gespeichert wird – so bleibt jede Bearbeitung rückgängig machbar.
+        """
+        result = self.load_result(result_id)
+        if not result:
+            return False
+        if result.content == new_content:
+            return True
+        self.save_version(result_id, result.content, note=note)
+        result.content = new_content
+        return self.update_result(result)
+
+    def rollback_to_version(self, result_id: str, version_id: str) -> bool:
+        """Stellt den Inhalt einer älteren Version wieder her.
+
+        Der aktuelle Inhalt wird vorher als Version gesichert.
+        """
+        result = self.load_result(result_id)
+        if not result:
+            return False
+        target = self.get_version_content(version_id)
+        if target is None:
+            return False
+        self.save_version(result_id, result.content, note="Vor Wiederherstellung")
+        result.content = target
+        return self.update_result(result)
+
+    def diff_versions(self, result_id: str, version_id_a: str,
+                      version_id_b: str) -> Optional[str]:
+        """Erzeugt einen Unified-Diff zwischen zwei Versionen.
+
+        version_id_b darf "current" sein, um mit dem aktuellen Inhalt zu vergleichen.
+        """
+        import difflib
+        content_a = self.get_version_content(version_id_a)
+        if version_id_b == "current":
+            result = self.load_result(result_id)
+            content_b = result.content if result else None
+        else:
+            content_b = self.get_version_content(version_id_b)
+        if content_a is None or content_b is None:
+            return None
+        return "".join(difflib.unified_diff(
+            content_a.splitlines(keepends=True),
+            content_b.splitlines(keepends=True),
+            fromfile=f"Version {version_id_a[:8]}",
+            tofile="aktuell" if version_id_b == "current" else f"Version {version_id_b[:8]}",
+        ))

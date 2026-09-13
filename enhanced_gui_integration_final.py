@@ -17,8 +17,9 @@ from typing import Optional, List, Dict, Any
 
 # Import existing components
 from Gui import Gui as BaseGui
-from analysis import (AnalysisFailure, analyze_text, extract_transkript,
-                     extract_text_from_website, text_extraction_youtube_website,
+from analysis import (AnalysisFailure, AVAILABLE_MODELS, analyze_text,
+                     extract_transkript, extract_text_from_website,
+                     text_extraction_youtube_website,
                      real_ai_analyse_fortext, real_ai_analyse_forpdf,
                      get_usage_stats, reset_usage_stats)
 from config import check_api_key_exists, save_api_key, get_api_key
@@ -76,6 +77,11 @@ class EnhancedGui(BaseGui):
         self.follow_up_system = FollowUpActionSystem()
         self.backup_manager = BackupManager()
         self.pdf_report_generator = PDFReportGenerator()
+
+        from projects import ProjectManager
+        from recipes import RecipeManager
+        self.project_manager = ProjectManager(self.results_manager.db_path)
+        self.recipe_manager = RecipeManager(self.results_manager.db_path)
         
         # Current result tracking
         self.current_result: Optional[ProcessedResult] = None
@@ -366,6 +372,23 @@ class EnhancedGui(BaseGui):
         self.enhanced_menu.add_command(
             label="Tags verwalten",
             command=self._manage_tags
+        )
+        self.enhanced_menu.add_separator()
+        self.enhanced_menu.add_command(
+            label="Projekte verwalten",
+            command=self._show_projects_dialog
+        )
+        self.enhanced_menu.add_command(
+            label="Rezepte verwalten",
+            command=self._show_recipes_dialog
+        )
+        self.enhanced_menu.add_command(
+            label="Ergebnis bearbeiten",
+            command=self._edit_current_result
+        )
+        self.enhanced_menu.add_command(
+            label="Versionsverlauf",
+            command=self._show_versions_dialog
         )
         self.enhanced_menu.add_command(
             label="Favoriten anzeigen",
@@ -1322,7 +1345,83 @@ class EnhancedGui(BaseGui):
 
         ttk.Button(dialog, text="Übernehmen", command=apply_and_close).pack(pady=10)
         ttk.Button(dialog, text="Abbrechen", command=dialog.destroy).pack()
-        
+
+    # ------------------------------------------------------------------
+    # Projekte, Rezepte und Ergebnis-Versionen
+    # ------------------------------------------------------------------
+
+    def _show_projects_dialog(self):
+        """Öffnet die Projektverwaltung."""
+        from workspace_ui import ProjectsDialog
+        ProjectsDialog(
+            self.window,
+            self.project_manager,
+            self.results_manager,
+            current_result_id=self.current_result.id if self.current_result else None,
+            on_change=lambda: self.results_browser.refresh_results(),
+        )
+
+    def _show_recipes_dialog(self):
+        """Öffnet die Rezeptverwaltung."""
+        from workspace_ui import RecipesDialog
+        RecipesDialog(
+            self.window,
+            self.recipe_manager,
+            on_apply=self._apply_recipe,
+            current_prompt=self.question_text.get(1.0, tk.END),
+            current_model=self.model_var.get(),
+        )
+
+    def _apply_recipe(self, recipe):
+        """Übernimmt Modell und Prompt-Vorlage eines Rezepts in die Oberfläche."""
+        if recipe.model and recipe.model in AVAILABLE_MODELS:
+            self.model_var.set(recipe.model)
+            self._on_model_changed()
+        self.question_text.delete(1.0, tk.END)
+        self.question_text.insert(1.0, recipe.prompt_template)
+        extras = []
+        if recipe.follow_up_actions:
+            extras.append(f"Folgeaktionen: {', '.join(recipe.follow_up_actions)}")
+        if recipe.export_format:
+            extras.append(f"Export: {recipe.export_format}")
+        suffix = f" ({'; '.join(extras)})" if extras else ""
+        self.status_var.set(f"Rezept '{recipe.name}' geladen{suffix}")
+
+    def _edit_current_result(self):
+        """Öffnet den Editor für den Inhalt des aktuellen Ergebnisses."""
+        if not self.current_result:
+            messagebox.showinfo("Kein Ergebnis",
+                                "Bitte wählen Sie zuerst ein Ergebnis aus.")
+            return
+        from workspace_ui import EditResultDialog
+        EditResultDialog(
+            self.window, self.results_manager, self.current_result.id,
+            on_saved=self._reload_current_result,
+        )
+
+    def _show_versions_dialog(self):
+        """Öffnet den Versionsverlauf des aktuellen Ergebnisses."""
+        if not self.current_result:
+            messagebox.showinfo("Kein Ergebnis",
+                                "Bitte wählen Sie zuerst ein Ergebnis aus.")
+            return
+        from workspace_ui import VersionsDialog
+        VersionsDialog(
+            self.window, self.results_manager, self.current_result.id,
+            on_change=self._reload_current_result,
+        )
+
+    def _reload_current_result(self):
+        """Lädt das aktuelle Ergebnis nach Bearbeitung/Rollback neu."""
+        if not self.current_result:
+            return
+        reloaded = self.results_manager.load_result(self.current_result.id)
+        if reloaded:
+            self.current_result = reloaded
+            self.results_display.display_content(reloaded.content, "markdown")
+            self.results_browser.refresh_results()
+            self.status_var.set("Ergebnis aktualisiert")
+
     # Override send_question to use enhanced processing
     def send_question(self):
         """Enhanced version of send_question that uses new processing pipeline."""
