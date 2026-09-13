@@ -170,6 +170,24 @@ class TestAnalyzeLocalProvider(unittest.TestCase):
         self.assertTrue(is_valid)
         self.assertEqual(max_tokens, 32768)
 
+    def test_pdf_analysis_rejected_for_local_provider(self):
+        """PDF-Direktanalyse darf bei lokalem Provider nicht still zu OpenAI gehen."""
+        import tempfile, os
+        analysis.set_provider("ollama")
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
+            f.write(b"%PDF-1.4 test")
+            path = f.name
+        try:
+            with mock.patch("analysis.get_api_key", return_value="secret"), \
+                 mock.patch("providers.build_client") as mock_build:
+                outcome = analysis.analyze_pdf(path, "Analysiere")
+            self.assertFalse(outcome.success)
+            self.assertEqual(outcome.error.code,
+                             analysis.AnalysisErrorCode.UNSUPPORTED_FORMAT)
+            mock_build.assert_not_called()
+        finally:
+            os.unlink(path)
+
 
 class TestTransferConfirmationLocal(unittest.TestCase):
 

@@ -755,6 +755,20 @@ def analyze_pdf(pdf_path: str, prompt: str) -> AnalysisOutcome:
             "Bitte geben Sie einen Analyseauftrag für die PDF-Datei an."
         ))
 
+    provider = _default_session.current_provider
+    if provider is None:
+        return AnalysisOutcome(error=AnalysisError(
+            AnalysisErrorCode.INVALID_INPUT,
+            "Der Analyse-Provider ist nicht korrekt konfiguriert. Bitte prüfen Sie die Einstellungen."
+        ))
+    if provider.id != "openai":
+        return AnalysisOutcome(error=AnalysisError(
+            AnalysisErrorCode.UNSUPPORTED_FORMAT,
+            "Die PDF-Direktanalyse nutzt die OpenAI-Assistants-API und ist nur "
+            "mit dem OpenAI-Provider verfügbar. Für lokale Analyse bitte den "
+            "Text/Bild-Tab (OCR-Extraktion) verwenden."
+        ))
+
     api_key = get_api_key()
     if not api_key:
         return AnalysisOutcome(error=AnalysisError(
