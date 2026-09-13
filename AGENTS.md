@@ -28,7 +28,8 @@
 - **Config:** `config.py` — API-Key via Keyring/Env/config.ini (Key-Name: `openai_key`, Fallbacks für alte Namen)
 - **Ergebnisse:** `results_manager.py` (SQLite+JSON, Ergebnisversionen), `results_browser.py`, `results_display.py`, `results_processor.py`
 - **Schema:** `migrations.py` (versionierte SQLite-Migrationen, `schema_migrations`-Tabelle)
-- **Projekte/Rezepte:** `projects.py` (Project CRUD + Ergebnis-Zuordnung), `recipes.py` (Rezept CRUD), `workspace_ui.py` (Dialoge für Projekte, Rezepte, Editieren, Versionen)
+- **Projekte/Rezepte:** `projects.py` (Project CRUD + Ergebnis-Zuordnung), `recipes.py` (Rezept CRUD), `workspace_ui.py` (Dialoge für Projekte, Rezepte, Editieren, Versionen, Batch)
+- **Batch:** `batch_queue.py` (persistente Jobs/Items, Pause/Resume/Cancel, begrenzte Parallelität, Retry nur für retryable Fehler, Privacy-Skip)
 - **Folgeaktionen:** `follow_up_actions.py` (FollowUpActionSystem mit History), `action_buttons.py`
 - **Export:** `excel_exporter.py`, `excel_export_ui.py`, `pdf_report_generator.py`
 - **Visualisierung:** `visualization_panel.py`, `chart_generator.py`

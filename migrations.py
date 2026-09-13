@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import List, Tuple
 
 SCHEMA_MIGRATIONS_TABLE = "schema_migrations"
-CURRENT_SCHEMA_VERSION = 2
+CURRENT_SCHEMA_VERSION = 3
 
 
 def _migration_1_baseline(conn: sqlite3.Connection):
@@ -97,9 +97,47 @@ def _migration_2_projects_recipes_versions(conn: sqlite3.Connection):
     conn.execute("CREATE INDEX IF NOT EXISTS idx_recipes_project ON recipes(project_id)")
 
 
+def _migration_3_batch_queue(conn: sqlite3.Connection):
+    """M7: Persistente Batch-Jobs und -Items."""
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS batch_jobs (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            prompt TEXT NOT NULL,
+            model TEXT,
+            concurrency INTEGER DEFAULT 1,
+            created_at TIMESTAMP NOT NULL,
+            updated_at TIMESTAMP NOT NULL
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS batch_items (
+            id TEXT PRIMARY KEY,
+            job_id TEXT NOT NULL REFERENCES batch_jobs(id) ON DELETE CASCADE,
+            source TEXT NOT NULL,
+            source_type TEXT NOT NULL,
+            position INTEGER NOT NULL DEFAULT 0,
+            status TEXT NOT NULL DEFAULT 'pending',
+            attempts INTEGER NOT NULL DEFAULT 0,
+            error_code TEXT,
+            error_message TEXT,
+            result_id TEXT,
+            prompt_tokens INTEGER NOT NULL DEFAULT 0,
+            completion_tokens INTEGER NOT NULL DEFAULT 0,
+            cost_estimate REAL NOT NULL DEFAULT 0,
+            started_at TIMESTAMP,
+            finished_at TIMESTAMP
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_batch_items_job ON batch_items(job_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_batch_items_status ON batch_items(status)")
+
+
 MIGRATIONS: List[Tuple[int, str, object]] = [
     (1, "Baseline-Schema (results)", _migration_1_baseline),
     (2, "Projekte, Rezepte, Ergebnisversionen", _migration_2_projects_recipes_versions),
+    (3, "Persistente Batch-Queue", _migration_3_batch_queue),
 ]
 
 

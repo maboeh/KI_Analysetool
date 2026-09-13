@@ -164,6 +164,19 @@ Tags und Favoriten stehen über das Menü **Erweiterte Funktionen** zur Verfügu
 
 Über **Ergebnis bearbeiten** kann der Inhalt eines gespeicherten Ergebnisses geändert werden. Vor jeder Änderung sichert die App automatisch den bisherigen Stand als Version. Der **Versionsverlauf** zeigt alle Versionen, einen zeilenweisen Diff zur aktuellen Version und ermöglicht die Wiederherstellung – wobei auch dann zuerst der aktuelle Stand gesichert wird.
 
+## 10.4 Batch-Verarbeitung
+
+Über **Erweiterte Funktionen → Batch-Verarbeitung** lassen sich mehrere Dateien mit demselben Prompt analysieren:
+
+- Jobs und Items werden persistent in der Ergebnisdatenbank gespeichert und überleben einen Neustart. Unterbrochene Jobs werden pausiert angezeigt und können fortgesetzt werden.
+- Parallelität ist pro Job auf 1–4 Worker begrenzt.
+- Jedes Item speichert Status, Versuche, Fehlercode, Token und geschätzte Kosten; Teilergebnisse werden sofort im Ergebnisverlauf gespeichert.
+- Fehler werden nur bei wiederholbaren Fehlern (Rate-Limit, Timeout, Verbindung) einmal erneut versucht.
+- Vor dem Versand prüft der lokale Datenschutz-Scanner den extrahierten Inhalt jedes Items; Items mit Funden werden als „skipped" markiert statt übertragen.
+- Pause, Fortsetzen und Abbrechen sind jederzeit möglich; abgebrochene Jobs bleiben zur Einsicht erhalten.
+
+Der Ergebnisvergleich enthält zusätzlich einen **Text-Diff-Tab** mit zeilenweisem Unified-Diff zwischen den ersten zwei ausgewählten Ergebnissen.
+
 ## 11. Analyse-Historie
 
 Die Analyse-Historie hält die Schritte der aktuellen Sitzung einschließlich Folgeaktionen und Elternbeziehungen fest. Sitzungen können als JSON gespeichert werden. Sie ist nicht mit dem persistenten Ergebnisverlauf identisch.

@@ -713,6 +713,11 @@ class ComparisonWindow:
         data_frame = ttk.Frame(notebook)
         notebook.add(data_frame, text="Strukturierte Daten")
         self._create_data_comparison(data_frame)
+
+        # Text-Diff tab (echte Änderungen zwischen den ersten zwei Ergebnissen)
+        diff_frame = ttk.Frame(notebook)
+        notebook.add(diff_frame, text="Text-Diff")
+        self._create_diff_comparison(diff_frame)
     
     def _create_content_comparison(self, parent):
         """Create content comparison view."""
@@ -807,6 +812,44 @@ class ComparisonWindow:
         
         text_widget.config(state=tk.DISABLED)
     
+    def _create_diff_comparison(self, parent):
+        """Zeigt einen zeilenweisen Unified-Diff der ersten zwei Ergebnisse."""
+        text_widget = tk.Text(parent, wrap=tk.NONE)
+        scrollbar = ttk.Scrollbar(parent, orient=tk.VERTICAL, command=text_widget.yview)
+        text_widget.configure(yscrollcommand=scrollbar.set)
+        text_widget.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        text_widget.tag_configure("added", foreground="#1a7f37")
+        text_widget.tag_configure("removed", foreground="#cf222e")
+        text_widget.tag_configure("hunk", foreground="#8250df")
+
+        if len(self.results) < 2:
+            text_widget.insert(tk.END, "Für einen Diff werden mindestens zwei Ergebnisse benötigt.")
+            text_widget.config(state=tk.DISABLED)
+            return
+
+        import difflib
+        diff = difflib.unified_diff(
+            self.results[0].content.splitlines(keepends=True),
+            self.results[1].content.splitlines(keepends=True),
+            fromfile="Ergebnis 1",
+            tofile="Ergebnis 2",
+        )
+        for line in diff:
+            tag = None
+            if line.startswith("+") and not line.startswith("+++"):
+                tag = "added"
+            elif line.startswith("-") and not line.startswith("---"):
+                tag = "removed"
+            elif line.startswith("@@"):
+                tag = "hunk"
+            if tag:
+                text_widget.insert(tk.END, line, tag)
+            else:
+                text_widget.insert(tk.END, line)
+        text_widget.config(state=tk.DISABLED)
+
     def _create_entities_comparison(self, parent):
         """Create entities comparison view."""
         text_widget = tk.Text(parent, wrap=tk.WORD)

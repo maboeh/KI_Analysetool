@@ -391,6 +391,10 @@ class EnhancedGui(BaseGui):
             command=self._show_versions_dialog
         )
         self.enhanced_menu.add_command(
+            label="Batch-Verarbeitung",
+            command=self._show_batch_dialog
+        )
+        self.enhanced_menu.add_command(
             label="Favoriten anzeigen",
             command=self._show_favorites
         )
@@ -1409,6 +1413,20 @@ class EnhancedGui(BaseGui):
         VersionsDialog(
             self.window, self.results_manager, self.current_result.id,
             on_change=self._reload_current_result,
+        )
+
+    def _show_batch_dialog(self):
+        """Öffnet die Batch-Queue-Verwaltung."""
+        if not hasattr(self, "_batch_queue"):
+            from batch_queue import BatchQueue
+            self._batch_queue = BatchQueue(
+                self.results_manager.db_path,
+                results_manager=self.results_manager,
+            )
+        from workspace_ui import BatchDialog
+        BatchDialog(
+            self.window, self._batch_queue,
+            on_result_saved=lambda: self.results_browser.refresh_results(),
         )
 
     def _reload_current_result(self):

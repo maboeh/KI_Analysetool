@@ -6,7 +6,9 @@ Persistenz zu. Sie blockieren nicht modal – der Aufrufer erhält über
 Callbacks bzw. direkte Rückgaben Rückmeldung.
 """
 
+import os
 import tkinter as tk
+from datetime import datetime
 from tkinter import messagebox, simpledialog, ttk
 from tkinter import scrolledtext
 from typing import Optional
@@ -362,3 +364,166 @@ class VersionsDialog(tk.Toplevel):
                 self.on_change()
             messagebox.showinfo("Wiederhergestellt",
                                 "Die Version wurde wiederhergestellt.", parent=self)
+
+
+class BatchDialog(tk.Toplevel):
+    """Batch-Queue: Jobs anlegen, starten, pausieren, abbrechen, verfolgen."""
+
+    def __init__(self, parent, batch_queue, on_result_saved=None):
+        super().__init__(parent)
+        self.batch_queue = batch_queue
+        self.on_result_saved = on_result_saved
+        self.title("Batch-Verarbeitung")
+        self.geometry("720x520")
+        self.transient(parent)
+
+        frame = ttk.Frame(self, padding=10)
+        frame.pack(fill=tk.BOTH, expand=True)
+
+        # Neuer Job
+        create_frame = ttk.LabelFrame(frame, text="Neuer Batch-Job", padding=8)
+        create_frame.pack(fill=tk.X)
+
+        ttk.Label(create_frame, text="Prompt (Platzhalter {text} optional):"
+                  ).grid(row=0, column=0, sticky=tk.W)
+        self.prompt_text = tk.Text(create_frame, height=3, wrap=tk.WORD)
+        self.prompt_text.grid(row=1, column=0, columnspan=3, sticky=tk.EW, pady=4)
+        self.prompt_text.insert("1.0", "Fasse den Inhalt zusammen: {text}")
+
+        self.files_var = tk.StringVar(value="Keine Dateien gewählt")
+        ttk.Label(create_frame, textvariable=self.files_var).grid(
+            row=2, column=0, sticky=tk.W)
+        ttk.Button(create_frame, text="Dateien wählen…",
+                   command=self._pick_files).grid(row=2, column=1, padx=4)
+        ttk.Label(create_frame, text="Parallel:").grid(row=2, column=2, sticky=tk.E)
+        self.concurrency_var = tk.Spinbox(create_frame, from_=1, to=4, width=3)
+        self.concurrency_var.grid(row=2, column=3, padx=4)
+        ttk.Button(create_frame, text="Job erstellen & starten",
+                   command=self._create_job).grid(row=3, column=0, sticky=tk.W, pady=4)
+        create_frame.columnconfigure(0, weight=1)
+        self._selected_files = []
+
+        # Jobliste
+        list_frame = ttk.LabelFrame(frame, text="Jobs", padding=8)
+        list_frame.pack(fill=tk.BOTH, expand=True, pady=8)
+
+        columns = ("name", "status", "progress", "cost")
+        self.tree = ttk.Treeview(list_frame, columns=columns, show="headings", height=8)
+        for col, label, width in (("name", "Name", 220), ("status", "Status", 100),
+                                  ("progress", "Fortschritt", 160),
+                                  ("cost", "Kosten", 90)):
+            self.tree.heading(col, text=label)
+            self.tree.column(col, width=width)
+        self.tree.pack(fill=tk.BOTH, expand=True)
+
+        btns = ttk.Frame(list_frame)
+        btns.pack(fill=tk.X, pady=(6, 0))
+        ttk.Button(btns, text="Start/Fortsetzen", command=self._start).pack(side=tk.LEFT)
+        ttk.Button(btns, text="Pause", command=self._pause).pack(side=tk.LEFT, padx=4)
+        ttk.Button(btns, text="Abbrechen", command=self._cancel).pack(side=tk.LEFT, padx=4)
+        ttk.Button(btns, text="Löschen", command=self._delete).pack(side=tk.LEFT, padx=4)
+        ttk.Button(btns, text="Schließen", command=self.destroy).pack(side=tk.RIGHT)
+
+        self._refresh()
+        self.bind("<Escape>", lambda _e: self.destroy())
+
+    def _pick_files(self):
+        from tkinter import filedialog as fd
+        files = fd.askopenfilenames(parent=self, title="Dateien für Batch wählen")
+        if files:
+            self._selected_files = list(files)
+            self.files_var.set(f"{len(files)} Datei(en) gewählt")
+
+    def _create_job(self):
+        if not self._selected_files:
+            messagebox.showinfo("Keine Dateien",
+                                "Bitte zuerst Dateien wählen.", parent=self)
+            return
+        prompt = self.prompt_text.get("1.0", tk.END).strip()
+        if not prompt:
+            messagebox.showinfo("Kein Prompt", "Bitte einen Prompt eingeben.",
+                                parent=self)
+            return
+
+        # Kombinierte Übertragungsbestätigung für den Batch-Prompt.
+        from transfer_confirmation import confirm_transfer
+        decision = confirm_transfer(
+            self, prompt, source_type="file",
+        )
+        if not decision.proceed:
+            return
+
+        items = []
+        for path in self._selected_files:
+            ext = os.path.splitext(path)[1].lower()
+            items.append({
+                "source": path,
+                "source_type": "pdf" if ext == ".pdf" else "file",
+            })
+        try:
+            job_id = self.batch_queue.create_job(
+                name=f"Batch {datetime.now().strftime('%d.%m. %H:%M')}",
+                prompt=decision.content,
+                items=items,
+                concurrency=int(self.concurrency_var.get() or 1),
+            )
+        except ValueError as exc:
+            messagebox.showerror("Fehler", str(exc), parent=self)
+            return
+        self.batch_queue.start_job(job_id, on_progress=self._on_progress)
+        self._refresh()
+
+    def _selected_job(self):
+        selection = self.tree.selection()
+        return selection[0] if selection else None
+
+    def _refresh(self):
+        self.tree.delete(*self.tree.get_children())
+        for job in self.batch_queue.list_jobs():
+            progress = self.batch_queue.get_job_progress(job.id)
+            total = progress["total"]
+            done = progress["done"] + progress["skipped"]
+            failed = progress["failed"] + progress["cancelled"]
+            text = f"{done}/{total} fertig"
+            if failed:
+                text += f", {failed} fehlgeschlagen"
+            self.tree.insert("", tk.END, iid=job.id, values=(
+                job.name, job.status, text, f"${progress['cost']:.4f}"))
+
+    def _on_progress(self, _job_id):
+        try:
+            self.after(0, self._refresh)
+        except tk.TclError:
+            pass
+        if self.on_result_saved:
+            try:
+                self.after(0, self.on_result_saved)
+            except tk.TclError:
+                pass
+
+    def _start(self):
+        job_id = self._selected_job()
+        if job_id:
+            self.batch_queue.resume_job(job_id, on_progress=self._on_progress)
+            self._refresh()
+
+    def _pause(self):
+        job_id = self._selected_job()
+        if job_id:
+            self.batch_queue.pause_job(job_id)
+            self._refresh()
+
+    def _cancel(self):
+        job_id = self._selected_job()
+        if job_id and messagebox.askyesno(
+                "Batch abbrechen", "Offene Items werden abgebrochen. Fortfahren?",
+                parent=self):
+            self.batch_queue.cancel_job(job_id)
+            self._refresh()
+
+    def _delete(self):
+        job_id = self._selected_job()
+        if job_id and messagebox.askyesno(
+                "Job löschen", "Job und Item-Historie löschen?", parent=self):
+            self.batch_queue.delete_job(job_id)
+            self._refresh()

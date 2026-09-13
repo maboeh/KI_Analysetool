@@ -125,6 +125,17 @@ Tags und Favoriten sind über **Erweiterte Funktionen** erreichbar.
 - **Ergebnis bearbeiten**: Der Inhalt eines gespeicherten Ergebnisses kann bearbeitet werden. Vor jeder Änderung wird automatisch eine Version des bisherigen Inhalts gesichert.
 - **Versionsverlauf**: Zeigt alle Versionen eines Ergebnisses, einen Diff zur aktuellen Version und eine Wiederherstellung mit Sicherungsversion.
 
+## Batch-Verarbeitung
+
+Über **Erweiterte Funktionen → Batch-Verarbeitung** können mehrere Dateien mit demselben Prompt analysiert werden:
+
+- Jobs werden persistent gespeichert und überleben einen Neustart (unterbrochene Jobs können fortgesetzt werden).
+- Pro Item gibt es Status, Fehlercode, Token- und Kostenerfassung.
+- Pause, Fortsetzen und Abbrechen sind möglich; Parallelität ist auf 1–4 Worker begrenzt.
+- Fehler werden nur bei wiederholbaren Fehlern (z. B. Rate-Limit, Timeout) einmal erneut versucht.
+- Teilergebnisse werden sofort gespeichert. Items, bei denen der lokale Datenschutz-Scan sensible Daten findet, werden übersprungen statt übertragen.
+- Der Vergleich im Ergebnisverlauf enthält zusätzlich einen zeilenweisen Text-Diff-Tab.
+
 ## Backup
 
 **Backup erstellen** sichert `results.db` und die lokalen Ergebnisdateien in einem ZIP-Archiv inklusive Manifest mit Formatversion und Dateiliste.
