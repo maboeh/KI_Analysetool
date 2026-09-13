@@ -121,11 +121,11 @@ class ResultsProcessor:
             ProcessedResult with enhanced processing
         """
         # Use existing analysis function
-        raw_result = analysis.real_ai_analyse_fortext(text)
+        outcome = analysis.analyze_text(text)
         
         # Process the result
-        return self.process_analysis_result(
-            raw_result=raw_result,
+        return self.process_analysis_outcome(
+            outcome=outcome,
             source_path=source_path,
             analysis_type="text_analysis"
         )
@@ -142,11 +142,11 @@ class ResultsProcessor:
             ProcessedResult with enhanced processing
         """
         # Use existing analysis function
-        raw_result = analysis.real_ai_analyse_forpdf(pdf_path, prompt)
+        outcome = analysis.analyze_pdf(pdf_path, prompt)
         
         # Process the result
-        return self.process_analysis_result(
-            raw_result=raw_result,
+        return self.process_analysis_outcome(
+            outcome=outcome,
             source_path=pdf_path,
             analysis_type="pdf_analysis"
         )
@@ -162,35 +162,20 @@ class ResultsProcessor:
         Returns:
             ProcessedResult with enhanced processing
         """
-        try:
-            # Extract content using existing function
-            content = analysis.text_extraction_youtube_website(file_path)
-            
-            if content.startswith("Fehler:") or content.startswith("Ein Fehler"):
-                # Handle error case
-                return ProcessedResult(
-                    content=content,
-                    source_info=create_source_info_from_path(file_path),
-                    metadata=ResultMetadata(analysis_type="error")
-                )
-            
-            # Determine analysis type based on file path
-            if analysis.is_pdf_file(file_path):
-                prompt = custom_prompt or "Analysiere dieses PDF-Dokument und fasse die wichtigsten Punkte zusammen."
-                return self.analyze_pdf_enhanced(file_path, prompt)
-            else:
-                # For text, YouTube, or website content
-                analysis_prompt = custom_prompt or content
-                return self.analyze_text_enhanced(analysis_prompt, file_path)
-                
-        except Exception as e:
-            # Handle exceptions gracefully
-            error_result = ProcessedResult(
-                content=f"Fehler bei der Analyse: {str(e)}",
-                source_info=create_source_info_from_path(file_path),
-                metadata=ResultMetadata(analysis_type="error")
-            )
-            return error_result
+        # Determine analysis type based on file path
+        if analysis.is_pdf_file(file_path):
+            prompt = custom_prompt or "Analysiere dieses PDF-Dokument und fasse die wichtigsten Punkte zusammen."
+            return self.analyze_pdf_enhanced(file_path, prompt)
+
+        # Extract content using existing function
+        extraction = analysis.extract_content(file_path)
+        if not extraction.success:
+            raise AnalysisFailure(extraction.error)
+        content = extraction.content
+
+        # For text, YouTube, or website content
+        analysis_prompt = custom_prompt or content
+        return self.analyze_text_enhanced(analysis_prompt, file_path)
     
     def execute_follow_up_action(
         self, 

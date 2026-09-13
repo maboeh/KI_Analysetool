@@ -138,7 +138,7 @@ class TestExcelExportDialog(unittest.TestCase):
         dialog._on_template_changed()
         
         # Verify template description is updated
-        self.assertIn('Nur Tabellen', dialog.template_desc_label.cget('text'))
+        self.assertIn('Tabellendaten', dialog.template_desc_label.cget('text'))
         
         dialog.destroy()
     
@@ -225,7 +225,7 @@ class TestExcelExportButton(unittest.TestCase):
         button = ExcelExportButton(self.root, self.result_provider)
         
         # Button should be enabled with exportable data
-        self.assertEqual(button.cget('state'), 'normal')
+        self.assertEqual(str(button.cget('state')), 'normal')
         self.assertIn('Excel Export', button.cget('text'))
         
         button.destroy()
@@ -236,7 +236,7 @@ class TestExcelExportButton(unittest.TestCase):
         button = ExcelExportButton(self.root, empty_provider)
         
         # Button should be disabled without data
-        self.assertEqual(button.cget('state'), 'disabled')
+        self.assertEqual(str(button.cget('state')), 'disabled')
         
         button.destroy()
     
@@ -251,7 +251,7 @@ class TestExcelExportButton(unittest.TestCase):
         button = ExcelExportButton(self.root, text_provider)
         
         # Button should be enabled but with different text
-        self.assertEqual(button.cget('state'), 'normal')
+        self.assertEqual(str(button.cget('state')), 'normal')
         self.assertIn('Zusammenfassung', button.cget('text'))
         
         button.destroy()
@@ -266,7 +266,8 @@ class TestExcelExportButton(unittest.TestCase):
         mock_dialog_class.return_value = mock_dialog
         
         # Simulate button click
-        button._on_export_click()
+        with patch.object(button, 'wait_window'):
+            button._on_export_click()
         
         # Verify dialog was created and shown
         mock_dialog_class.assert_called_once()

@@ -8,7 +8,9 @@ from datetime import datetime
 import tempfile
 import os
 
-from analysis import AnalysisError, AnalysisErrorCode, AnalysisFailure, AnalysisOutcome
+from analysis import (
+    AnalysisError, AnalysisErrorCode, AnalysisFailure, AnalysisOutcome, ExtractionOutcome
+)
 from results_processor import (
     ResultsProcessor, create_results_processor, enhanced_analyze_text,
     enhanced_analyze_pdf, enhanced_analyze_content
@@ -35,10 +37,18 @@ class TestResultsProcessor(unittest.TestCase):
         self.mock_follow_up_analysis = self.follow_up_analysis_patcher.start()
         
         # Set up mock return values
-        self.mock_analysis.real_ai_analyse_fortext.return_value = "Test analysis result with 25% improvement and €1,000 budget."
-        self.mock_analysis.real_ai_analyse_forpdf.return_value = "PDF analysis result with data table."
+        text_result = "Test analysis result with 25% improvement and €1,000 budget."
+        pdf_result = "PDF analysis result with data table."
+        self.mock_analysis.real_ai_analyse_fortext.return_value = text_result
+        self.mock_analysis.real_ai_analyse_forpdf.return_value = pdf_result
+        self.mock_analysis.analyze_text.return_value = AnalysisOutcome(content=text_result)
+        self.mock_analysis.analyze_pdf.return_value = AnalysisOutcome(content=pdf_result)
+        self.mock_analysis.extract_content.return_value = ExtractionOutcome(
+            content="Extracted content from source.", source_type="file", source="test.txt"
+        )
         self.mock_analysis.text_extraction_youtube_website.return_value = "Extracted content from source."
         self.mock_analysis.is_pdf_file.return_value = False
+        self.mock_analysis.get_model.return_value = "gpt-4o"
         
         self.mock_follow_up_analysis.real_ai_analyse_fortext.return_value = "Follow-up analysis result"
         self.mock_follow_up_analysis.analyze_text.return_value = AnalysisOutcome(content="Follow-up analysis result")
@@ -124,7 +134,7 @@ class TestResultsProcessor(unittest.TestCase):
         result = self.processor.analyze_text_enhanced(text, source_path)
         
         # Check that analysis function was called
-        self.mock_analysis.real_ai_analyse_fortext.assert_called_once_with(text)
+        self.mock_analysis.analyze_text.assert_called_once_with(text)
         
         # Check result properties
         self.assertIsInstance(result, ProcessedResult)
@@ -139,7 +149,7 @@ class TestResultsProcessor(unittest.TestCase):
         result = self.processor.analyze_pdf_enhanced(pdf_path, prompt)
         
         # Check that PDF analysis function was called
-        self.mock_analysis.real_ai_analyse_forpdf.assert_called_once_with(pdf_path, prompt)
+        self.mock_analysis.analyze_pdf.assert_called_once_with(pdf_path, prompt)
         
         # Check result properties
         self.assertIsInstance(result, ProcessedResult)
@@ -153,10 +163,10 @@ class TestResultsProcessor(unittest.TestCase):
         result = self.processor.analyze_content_enhanced(file_path)
         
         # Check that content extraction was called
-        self.mock_analysis.text_extraction_youtube_website.assert_called_once_with(file_path)
+        self.mock_analysis.extract_content.assert_called_once_with(file_path)
         
         # Check that text analysis was performed
-        self.mock_analysis.real_ai_analyse_fortext.assert_called()
+        self.mock_analysis.analyze_text.assert_called()
         
         self.assertIsInstance(result, ProcessedResult)
     
@@ -168,21 +178,21 @@ class TestResultsProcessor(unittest.TestCase):
         result = self.processor.analyze_content_enhanced(file_path)
         
         # Check that PDF analysis was performed
-        self.mock_analysis.real_ai_analyse_forpdf.assert_called()
+        self.mock_analysis.analyze_pdf.assert_called()
         
         self.assertIsInstance(result, ProcessedResult)
     
     def test_analyze_content_enhanced_error_handling(self):
         """Test error handling in content analysis."""
         file_path = "nonexistent.txt"
-        self.mock_analysis.text_extraction_youtube_website.return_value = "Fehler: Datei konnte nicht gefunden werden"
+        self.mock_analysis.extract_content.return_value = ExtractionOutcome(
+            source_type="file",
+            source=file_path,
+            error=AnalysisError(AnalysisErrorCode.FILE_NOT_FOUND, "Datei nicht gefunden")
+        )
         
-        result = self.processor.analyze_content_enhanced(file_path)
-        
-        # Should return error result
-        self.assertIsInstance(result, ProcessedResult)
-        self.assertEqual(result.metadata.analysis_type, "error")
-        self.assertTrue(result.content.startswith("Fehler:"))
+        with self.assertRaises(AnalysisFailure):
+            self.processor.analyze_content_enhanced(file_path)
     
     def test_execute_follow_up_action_summarize(self):
         """Test executing summarize follow-up action."""
@@ -381,10 +391,13 @@ class TestIntegrationFunctions(unittest.TestCase):
         # Mock the analysis functions
         self.analysis_patcher = patch('results_processor.analysis')
         self.mock_analysis = self.analysis_patcher.start()
-        self.mock_analysis.real_ai_analyse_fortext.return_value = "Test result"
-        self.mock_analysis.real_ai_analyse_forpdf.return_value = "PDF result"
-        self.mock_analysis.text_extraction_youtube_website.return_value = "Extracted content"
+        self.mock_analysis.analyze_text.return_value = AnalysisOutcome(content="Test result")
+        self.mock_analysis.analyze_pdf.return_value = AnalysisOutcome(content="PDF result")
+        self.mock_analysis.extract_content.return_value = ExtractionOutcome(
+            content="Extracted content", source_type="file", source="test.txt"
+        )
         self.mock_analysis.is_pdf_file.return_value = False
+        self.mock_analysis.get_model.return_value = "gpt-4o"
     
     def tearDown(self):
         """Clean up after tests."""
@@ -396,7 +409,7 @@ class TestIntegrationFunctions(unittest.TestCase):
         
         self.assertIsInstance(result, ProcessedResult)
         self.assertEqual(result.metadata.analysis_type, "text_analysis")
-        self.mock_analysis.real_ai_analyse_fortext.assert_called_once_with("Test text")
+        self.mock_analysis.analyze_text.assert_called_once_with("Test text")
     
     def test_enhanced_analyze_pdf(self):
         """Test enhanced_analyze_pdf integration function."""
@@ -404,14 +417,14 @@ class TestIntegrationFunctions(unittest.TestCase):
         
         self.assertIsInstance(result, ProcessedResult)
         self.assertEqual(result.metadata.analysis_type, "pdf_analysis")
-        self.mock_analysis.real_ai_analyse_forpdf.assert_called_once_with("test.pdf", "Analyze this")
+        self.mock_analysis.analyze_pdf.assert_called_once_with("test.pdf", "Analyze this")
     
     def test_enhanced_analyze_content(self):
         """Test enhanced_analyze_content integration function."""
         result = enhanced_analyze_content("test.txt")
         
         self.assertIsInstance(result, ProcessedResult)
-        self.mock_analysis.text_extraction_youtube_website.assert_called_once_with("test.txt")
+        self.mock_analysis.extract_content.assert_called_once_with("test.txt")
     
     def test_create_results_processor(self):
         """Test create_results_processor factory function."""

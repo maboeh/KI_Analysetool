@@ -440,37 +440,62 @@ class ResultsManager:
         
         # Save updated JSON content
         json_file_path = self.results_dir / f"{result.id}.json"
-        with open(json_file_path, 'w', encoding='utf-8') as f:
+        temporary_json_path = self.results_dir / f".{result.id}.json.tmp"
+        backup_json_path = self.results_dir / f".{result.id}.json.bak"
+        with open(temporary_json_path, 'w', encoding='utf-8') as f:
             json.dump(result.to_dict(), f, ensure_ascii=False, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
         
         # Update database metadata
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute("""
-                UPDATE results SET
-                    analysis_type = ?,
-                    has_visualizations = ?,
-                    has_exportable_data = ?,
-                    processing_time = ?,
-                    model_used = ?,
-                    tokens_used = ?,
-                    confidence_score = ?,
-                    tags = ?,
-                    updated_at = ?
-                WHERE id = ?
-            """, (
-                result.metadata.analysis_type,
-                len(result.visualizations) > 0,
-                result.has_exportable_data(),
-                result.metadata.processing_time,
-                result.metadata.model_used,
-                result.metadata.tokens_used,
-                result.metadata.confidence_score,
-                json.dumps(result.metadata.tags),
-                result.updated_at.isoformat(),
-                result.id
-            ))
-            
-            return cursor.rowcount > 0
+        replaced_existing = False
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.execute("""
+                    UPDATE results SET
+                        analysis_type = ?,
+                        has_visualizations = ?,
+                        has_exportable_data = ?,
+                        processing_time = ?,
+                        model_used = ?,
+                        tokens_used = ?,
+                        confidence_score = ?,
+                        tags = ?,
+                        updated_at = ?
+                    WHERE id = ?
+                """, (
+                    result.metadata.analysis_type,
+                    len(result.visualizations) > 0,
+                    result.has_exportable_data(),
+                    result.metadata.processing_time,
+                    result.metadata.model_used,
+                    result.metadata.tokens_used,
+                    result.metadata.confidence_score,
+                    json.dumps(result.metadata.tags),
+                    result.updated_at.isoformat(),
+                    result.id
+                ))
+                if cursor.rowcount == 0:
+                    return False
+                if json_file_path.exists():
+                    os.replace(json_file_path, backup_json_path)
+                    replaced_existing = True
+                os.replace(temporary_json_path, json_file_path)
+                conn.commit()
+            if backup_json_path.exists():
+                backup_json_path.unlink()
+            return True
+        except Exception:
+            if replaced_existing and backup_json_path.exists():
+                if json_file_path.exists():
+                    json_file_path.unlink()
+                os.replace(backup_json_path, json_file_path)
+            raise
+        finally:
+            if temporary_json_path.exists():
+                temporary_json_path.unlink()
+            if backup_json_path.exists() and not replaced_existing:
+                backup_json_path.unlink()
 
     # --- Tag-Verwaltung ---
 

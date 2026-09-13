@@ -10,6 +10,7 @@
 - **Syntax-Check aller Module:** `.venv/bin/python -m py_compile *.py`
 - **Smoke-Tests (ohne pytest):** Siehe Verification-Sektion unten
 - **pytest ist NICHT im venv installiert** — Tests manuell via `python -c` oder `python test_<modul>.py` laufen lassen
+- **Zentraler Testlauf:** `.venv/bin/python run_tests.py --group all` (`unit`, `gui`, `integration` oder `all`; Timeout pro Datei mit `--timeout`)
 - **GUI-Instanziierung testen:** `.venv/bin/python -c "import tkinter as tk; from enhanced_gui_integration_final import EnhancedGui; w=tk.Tk(); w.withdraw(); app=EnhancedGui(w); print('OK'); w.destroy()"`
 - **Wichtige Tests:**
   - `PYTHONPATH=$(pwd) .venv/bin/python tests/test_security.py`

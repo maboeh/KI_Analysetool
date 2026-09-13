@@ -52,14 +52,14 @@ class TestExtendedInputTabs(unittest.TestCase):
         tabs = ExtendedInputTabs(self.notebook, self.status_callback)
         
         # Check that tabs were created
-        self.assertEqual(self.notebook.index("end"), 4)  # 4 new tabs
+        self.assertEqual(self.notebook.index("end"), 5)  # 5 new tabs
         
         # Check tab names
         tab_names = []
         for i in range(self.notebook.index("end")):
             tab_names.append(self.notebook.tab(i, "text"))
         
-        expected_tabs = ["Excel", "Bild/PDF", "CSV/Text", "Multi-Datei"]
+        expected_tabs = ["Text", "Excel", "Bild/PDF", "CSV/Text", "Multi-Datei"]
         self.assertEqual(tab_names, expected_tabs)
         
         # Check initialization
@@ -79,7 +79,7 @@ class TestExtendedInputTabs(unittest.TestCase):
         
         # Should still create tabs but with no file router
         self.assertIsNone(tabs.file_router)
-        self.assertEqual(self.notebook.index("end"), 4)
+        self.assertEqual(self.notebook.index("end"), 5)
     
     @patch('extended_input_tabs.FileHandlerRouter')
     def test_excel_tab_components(self, mock_router_class):
@@ -90,7 +90,7 @@ class TestExtendedInputTabs(unittest.TestCase):
         tabs = ExtendedInputTabs(self.notebook, self.status_callback)
         
         # Check Excel tab exists and has required components
-        excel_tab = self.notebook.nametowidget(self.notebook.tabs()[0])
+        excel_tab = self.notebook.nametowidget(self.notebook.tabs()[1])
         
         # Should have file selection, sheet selection, and preview components
         widgets = self.get_all_widgets(excel_tab)
@@ -115,7 +115,7 @@ class TestExtendedInputTabs(unittest.TestCase):
         tabs = ExtendedInputTabs(self.notebook, self.status_callback)
         
         # Check Image tab exists and has required components
-        image_tab = self.notebook.nametowidget(self.notebook.tabs()[1])
+        image_tab = self.notebook.nametowidget(self.notebook.tabs()[2])
         
         widgets = self.get_all_widgets(image_tab)
         
@@ -137,7 +137,7 @@ class TestExtendedInputTabs(unittest.TestCase):
         tabs = ExtendedInputTabs(self.notebook, self.status_callback)
         
         # Check CSV tab exists and has required components
-        csv_tab = self.notebook.nametowidget(self.notebook.tabs()[2])
+        csv_tab = self.notebook.nametowidget(self.notebook.tabs()[3])
         
         widgets = self.get_all_widgets(csv_tab)
         
@@ -159,7 +159,7 @@ class TestExtendedInputTabs(unittest.TestCase):
         tabs = ExtendedInputTabs(self.notebook, self.status_callback)
         
         # Check Multi-file tab exists and has required components
-        multi_tab = self.notebook.nametowidget(self.notebook.tabs()[3])
+        multi_tab = self.notebook.nametowidget(self.notebook.tabs()[4])
         
         widgets = self.get_all_widgets(multi_tab)
         

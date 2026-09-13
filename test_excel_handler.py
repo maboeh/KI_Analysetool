@@ -184,7 +184,7 @@ class TestExcelHandler(unittest.TestCase):
     
     def test_error_handling_invalid_file(self):
         """Test error handling for invalid files."""
-        with self.assertRaises(ValueError):
+        with self.assertRaises(FileNotFoundError):
             self.handler.get_file_info("nonexistent.xlsx")
         
         with self.assertRaises(ValueError):
@@ -231,13 +231,13 @@ class TestExcelHandler(unittest.TestCase):
     def test_unnamed_columns_handling(self):
         """Test handling of unnamed columns in Excel files."""
         # Create DataFrame with unnamed columns
-        data_with_unnamed = pd.DataFrame([
-            [1, 2, 3, 4],
-            [5, 6, 7, 8]
-        ])
+        data_with_unnamed = pd.DataFrame(
+            [[1, 2, 3, 4], [5, 6, 7, 8]],
+            columns=[None, None, None, None]
+        )
         
         unnamed_file = os.path.join(self.temp_dir, "unnamed_cols.xlsx")
-        data_with_unnamed.to_excel(unnamed_file, index=False, header=False)
+        data_with_unnamed.to_excel(unnamed_file, index=False)
         
         try:
             df = self.handler.read_sheet(unnamed_file)

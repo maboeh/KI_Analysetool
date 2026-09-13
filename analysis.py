@@ -30,6 +30,11 @@ class AnalysisErrorCode(Enum):
     CONNECTION_FAILED = "connection_failed"
     TIMED_OUT = "timed_out"
     INVALID_INPUT = "invalid_input"
+    FILE_NOT_FOUND = "file_not_found"
+    UNSUPPORTED_FORMAT = "unsupported_format"
+    UNSAFE_URL = "unsafe_url"
+    EXTRACTION_FAILED = "extraction_failed"
+    CANCELLED = "cancelled"
     PROVIDER_ERROR = "provider_error"
     UNKNOWN = "unknown"
 
@@ -53,6 +58,21 @@ class AnalysisOutcome:
     error: Optional[AnalysisError] = None
     prompt_tokens: int = 0
     completion_tokens: int = 0
+
+    @property
+    def success(self) -> bool:
+        return self.error is None
+
+    def to_legacy_text(self) -> str:
+        return self.content if self.success else f"Fehler: {self.error.user_message}"
+
+
+@dataclass(frozen=True)
+class ExtractionOutcome:
+    content: str = ""
+    source_type: str = "unknown"
+    source: str = ""
+    error: Optional[AnalysisError] = None
 
     @property
     def success(self) -> bool:
@@ -279,45 +299,82 @@ def extract_text_from_website(url):
     return _extract_readable_text_from_html(response.text)
 
 
-def text_extraction_youtube_website(file_path_or_url):
-    """Extrahiert Text aus YouTube-URLs, Webseiten-URLs oder lokalen Dateien."""
-    if not file_path_or_url:
-        return "Fehler: Keine Eingabe angegeben."
+def extract_content(file_path_or_url: str) -> ExtractionOutcome:
+    if not isinstance(file_path_or_url, str) or not file_path_or_url.strip():
+        return ExtractionOutcome(error=AnalysisError(
+            AnalysisErrorCode.INVALID_INPUT,
+            "Bitte geben Sie eine URL oder einen Dateipfad an."
+        ))
 
-    if isinstance(file_path_or_url, str) and file_path_or_url.strip().lower().startswith(("http://", "https://")):
-        text = file_path_or_url.strip()
-        if "youtu" in text.lower():
+    source = file_path_or_url.strip()
+    if source.lower().startswith(("http://", "https://")):
+        parsed = urlparse(source)
+        hostname = (parsed.hostname or "").lower()
+        if hostname in ("youtube.com", "www.youtube.com", "youtu.be"):
             try:
-                return extract_transkript(text)
-            except Exception as e:
-                return f"Fehler beim Extrahieren des YouTube-Transkripts: {e}"
+                content = extract_transkript(source)
+                if not content.strip():
+                    raise ValueError("Empty transcript")
+                return ExtractionOutcome(content=content, source_type="youtube", source=source)
+            except Exception:
+                logger.exception("Fehler bei der YouTube-Transkriptextraktion")
+                return ExtractionOutcome(source_type="youtube", source=source, error=AnalysisError(
+                    AnalysisErrorCode.EXTRACTION_FAILED,
+                    "Das YouTube-Transkript konnte nicht extrahiert werden. Prüfen Sie URL und Untertitel."
+                ))
 
-        if not is_safe_url(text):
-            return "Fehler: URL nicht erlaubt oder unsicher"
         try:
-            return extract_text_from_website(text)
-        except Exception as e:
-            return f"Fehler beim Extrahieren der Webseite: {e}"
+            content = extract_text_from_website(source)
+            if not content.strip():
+                raise ValueError("Empty website content")
+            return ExtractionOutcome(content=content, source_type="website", source=source)
+        except Exception as exc:
+            from security import SecurityException
+            if isinstance(exc, SecurityException):
+                code = AnalysisErrorCode.UNSAFE_URL
+                message = "Die URL ist nicht erlaubt oder verweist auf ein geschütztes Netzwerk."
+            else:
+                code = AnalysisErrorCode.EXTRACTION_FAILED
+                message = "Der lesbare Inhalt der Webseite konnte nicht extrahiert werden."
+            logger.exception("Fehler bei der Webseitenextraktion")
+            return ExtractionOutcome(source_type="website", source=source, error=AnalysisError(code, message))
 
     # Local file path
     text_extensions = {".txt", ".md", ".csv", ".json", ".xml", ".html", ".htm", ".log", ".ini", ".py", ".js"}
     binary_extensions = {".pdf", ".xlsx", ".xls", ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".doc", ".docx", ".ppt", ".pptx"}
-    ext = os.path.splitext(file_path_or_url)[1].lower()
-    if ext in binary_extensions:
-        return f"Fehler: Dateien vom Typ '{ext}' können hier nicht als Text gelesen werden. Bitte verwenden Sie den passenden Import-Tab (z. B. PDF, Excel, Bilder)."
+    ext = os.path.splitext(source)[1].lower()
+    if ext in binary_extensions or ext not in text_extensions:
+        return ExtractionOutcome(source_type="file", source=source, error=AnalysisError(
+            AnalysisErrorCode.UNSUPPORTED_FORMAT,
+            f"Dateien vom Typ '{ext or 'unbekannt'}' müssen über den passenden Import-Tab geöffnet werden."
+        ))
+    if not os.path.isfile(source):
+        return ExtractionOutcome(source_type="file", source=source, error=AnalysisError(
+            AnalysisErrorCode.FILE_NOT_FOUND,
+            "Die ausgewählte Datei wurde nicht gefunden."
+        ))
 
-    if not is_safe_filepath(file_path_or_url):
-        return "Fehler: Dateityp nicht unterstützt oder Pfad ungültig"
     try:
-        with open(file_path_or_url, "r", encoding="utf-8") as file:
-            return file.read()
-    except UnicodeDecodeError:
-        with open(file_path_or_url, "r", encoding="latin-1") as file:
-            return file.read()
-    except FileNotFoundError:
-        return "Fehler: Datei konnte nicht gefunden werden"
-    except Exception as e:
-        return f"Ein Fehler ist aufgetreten: {e}"
+        from security import validate_file_path
+        safe_path = validate_file_path(source)
+        try:
+            with open(safe_path, "r", encoding="utf-8") as file:
+                content = file.read()
+        except UnicodeDecodeError:
+            with open(safe_path, "r", encoding="latin-1") as file:
+                content = file.read()
+        return ExtractionOutcome(content=content, source_type="file", source=safe_path)
+    except Exception:
+        logger.exception("Fehler bei der lokalen Textextraktion")
+        return ExtractionOutcome(source_type="file", source=source, error=AnalysisError(
+            AnalysisErrorCode.EXTRACTION_FAILED,
+            "Die Datei konnte nicht gelesen werden. Prüfen Sie Format und Zugriffsrechte."
+        ))
+
+
+def text_extraction_youtube_website(file_path_or_url):
+    """Extrahiert Text aus YouTube-URLs, Webseiten-URLs oder lokalen Dateien."""
+    return extract_content(file_path_or_url).to_legacy_text()
 
 
 def analyze_text(text: str) -> AnalysisOutcome:
@@ -414,28 +471,45 @@ def real_ai_analyse_fortext(text):
     return analyze_text(text).to_legacy_text()
 
 
-def real_ai_analyse_forpdf(pdf_path, prompt):
+def analyze_pdf(pdf_path: str, prompt: str) -> AnalysisOutcome:
     file = None
     assistant = None
     thread = None
     client = None
-    try:
-        if not is_pdf_file(pdf_path):
-            return "Fehler: Ungültiger PDF-Pfad. Bitte wählen Sie eine .pdf-Datei."
-        if not os.path.isfile(pdf_path):
-            return "Fehler: PDF-Datei nicht gefunden."
+    if not isinstance(pdf_path, str) or not pdf_path.strip():
+        return AnalysisOutcome(error=AnalysisError(
+            AnalysisErrorCode.INVALID_INPUT,
+            "Bitte wählen Sie eine PDF-Datei aus."
+        ))
+    if not os.path.isfile(pdf_path):
+        return AnalysisOutcome(error=AnalysisError(
+            AnalysisErrorCode.FILE_NOT_FOUND,
+            "Die PDF-Datei wurde nicht gefunden."
+        ))
+    if not is_pdf_file(pdf_path):
+        return AnalysisOutcome(error=AnalysisError(
+            AnalysisErrorCode.UNSUPPORTED_FORMAT,
+            "Die ausgewählte Datei ist keine PDF-Datei."
+        ))
+    if not isinstance(prompt, str) or not prompt.strip():
+        return AnalysisOutcome(error=AnalysisError(
+            AnalysisErrorCode.INVALID_INPUT,
+            "Bitte geben Sie einen Analyseauftrag für die PDF-Datei an."
+        ))
 
-        api_key = get_api_key()
-        if not api_key:
-            return "Fehler: Kein API-Schlüssel verfügbar"
+    api_key = get_api_key()
+    if not api_key:
+        return AnalysisOutcome(error=AnalysisError(
+            AnalysisErrorCode.MISSING_API_KEY,
+            "Kein API-Schlüssel verfügbar. Bitte hinterlegen Sie einen OpenAI API-Key."
+        ))
+
+    try:
         client = OpenAI(api_key=api_key)
 
         # For PDFs:
         with open(pdf_path, "rb") as file_object:
-            file = client.files.create(
-                file=file_object,
-                purpose="assistants"
-            )
+            file = client.files.create(file=file_object, purpose="assistants")
 
         def _create_assistant():
             return client.beta.assistants.create(
@@ -469,48 +543,103 @@ def real_ai_analyse_forpdf(pdf_path, prompt):
         # Wait for completion
         max_wait = 120
         waited = 0
-        while run.status not in ["completed", "failed", "cancelled"]:
-            run = client.beta.threads.runs.retrieve(
-                thread_id=thread.id,
-                run_id=run.id
-            )
-            if run.status == "failed":
-                return f"Error: {run.last_error}"
-            if run.status == "cancelled":
-                return "Error: PDF-Analyse wurde abgebrochen."
+        while run.status not in ["completed", "failed", "cancelled", "expired"]:
+            run = client.beta.threads.runs.retrieve(thread_id=thread.id, run_id=run.id)
             time.sleep(1)
             waited += 1
             if waited >= max_wait:
-                return "Fehler: Zeitüberschreitung bei der PDF-Analyse"
+                return AnalysisOutcome(error=AnalysisError(
+                    AnalysisErrorCode.TIMED_OUT,
+                    "Die PDF-Analyse hat zu lange gedauert. Bitte versuchen Sie es erneut.",
+                    retryable=True
+                ))
+
+        if run.status == "failed" or run.status == "expired":
+            return AnalysisOutcome(error=AnalysisError(
+                AnalysisErrorCode.PROVIDER_ERROR,
+                "Der KI-Dienst konnte die PDF-Datei nicht verarbeiten."
+            ))
+        if run.status == "cancelled":
+            return AnalysisOutcome(error=AnalysisError(
+                AnalysisErrorCode.CANCELLED,
+                "Die PDF-Analyse wurde abgebrochen."
+            ))
 
         # Get the response
         messages = client.beta.threads.messages.list(thread_id=thread.id)
 
         # Return the assistant's response
         for message in messages.data:
-            if message.role == "assistant":
-                return message.content[0].text.value
+            if message.role == "assistant" and message.content:
+                content = message.content[0].text.value
+                usage = getattr(run, "usage", None)
+                prompt_tokens = getattr(usage, "prompt_tokens", 0) if usage else 0
+                completion_tokens = getattr(usage, "completion_tokens", 0) if usage else 0
+                if isinstance(prompt_tokens, int) and isinstance(completion_tokens, int):
+                    _default_session.record_usage(prompt_tokens, completion_tokens)
+                else:
+                    prompt_tokens = completion_tokens = 0
+                return AnalysisOutcome(
+                    content=content,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens
+                )
 
-        return "No response received"
-
-    except Exception as e:
-        logger.exception("Error analyzing PDF")
-        return f"Error analyzing PDF: {e}"
+        return AnalysisOutcome(error=AnalysisError(
+            AnalysisErrorCode.PROVIDER_ERROR,
+            "Der KI-Dienst hat kein PDF-Analyseergebnis zurückgegeben."
+        ))
+    except RateLimitError:
+        logger.exception("Rate-Limit bei der PDF-Analyse")
+        return AnalysisOutcome(error=AnalysisError(
+            AnalysisErrorCode.RATE_LIMITED,
+            "Das API-Limit wurde erreicht. Bitte versuchen Sie es später erneut.",
+            retryable=True
+        ))
+    except APITimeoutError:
+        logger.exception("Zeitüberschreitung bei der PDF-Analyse")
+        return AnalysisOutcome(error=AnalysisError(
+            AnalysisErrorCode.TIMED_OUT,
+            "Die PDF-Analyse hat zu lange gedauert. Bitte versuchen Sie es erneut.",
+            retryable=True
+        ))
+    except APIConnectionError:
+        logger.exception("Verbindungsfehler bei der PDF-Analyse")
+        return AnalysisOutcome(error=AnalysisError(
+            AnalysisErrorCode.CONNECTION_FAILED,
+            "OpenAI ist derzeit nicht erreichbar. Bitte prüfen Sie die Verbindung.",
+            retryable=True
+        ))
+    except APIError:
+        logger.exception("API-Fehler bei der PDF-Analyse")
+        return AnalysisOutcome(error=AnalysisError(
+            AnalysisErrorCode.PROVIDER_ERROR,
+            "Der KI-Dienst konnte die PDF-Anfrage nicht verarbeiten."
+        ))
+    except Exception:
+        logger.exception("Unerwarteter Fehler bei der PDF-Analyse")
+        return AnalysisOutcome(error=AnalysisError(
+            AnalysisErrorCode.UNKNOWN,
+            "Die PDF-Analyse konnte nicht abgeschlossen werden."
+        ))
     finally:
-        if not client:
-            return
-        try:
-            if file:
-                client.files.delete(file.id)
-        except Exception:
-            pass
-        try:
-            if assistant:
-                client.beta.assistants.delete(assistant.id)
-        except Exception:
-            pass
-        try:
-            if thread:
-                client.beta.threads.delete(thread.id)
-        except Exception:
-            pass
+        if client:
+            try:
+                if file:
+                    client.files.delete(file.id)
+            except Exception:
+                pass
+            try:
+                if assistant:
+                    client.beta.assistants.delete(assistant.id)
+            except Exception:
+                pass
+            try:
+                if thread:
+                    client.beta.threads.delete(thread.id)
+            except Exception:
+                pass
+
+
+def real_ai_analyse_forpdf(pdf_path, prompt):
+    return analyze_pdf(pdf_path, prompt).to_legacy_text()

@@ -18,8 +18,10 @@ from analysis import (
     set_model,
     get_model,
     AVAILABLE_MODELS,
+    AnalysisFailure,
+    analyze_pdf,
     analyze_text,
-    outcome_from_legacy_text,
+    extract_content,
 )
 from config import check_api_key_exists, save_api_key, get_api_key
 
@@ -328,15 +330,19 @@ class Gui:
             url = self.website_url.get().strip()
             if not url:
                 raise ValueError("Bitte geben Sie eine Webseiten-URL ein.")
-            content = text_extraction_youtube_website(url)
-            return content, url, "website"
+            outcome = extract_content(url)
+            if not outcome.success:
+                raise AnalysisFailure(outcome.error)
+            return outcome.content, url, "website"
 
         if tab_id == self.TAB_YOUTUBE:
             url = self.youtube_url.get().strip()
             if not url:
                 raise ValueError("Bitte geben Sie einen YouTube-Link ein.")
-            content = text_extraction_youtube_website(url)
-            return content, url, "youtube"
+            outcome = extract_content(url)
+            if not outcome.success:
+                raise AnalysisFailure(outcome.error)
+            return outcome.content, url, "youtube"
 
         if tab_id == self.TAB_PDF:
             # Prefer the uploaded file path, fall back to the URL field.
@@ -381,11 +387,16 @@ class Gui:
             return f"{question_prompt}\n\n{content}"
 
     def send_question(self):
-        content, source_path, source_type = self.start_analyse()
+        try:
+            content, source_path, source_type = self.start_analyse()
+        except AnalysisFailure as exc:
+            messagebox.showerror("Extraktion fehlgeschlagen", exc.error.user_message)
+            self.status_var.set("Extraktion fehlgeschlagen")
+            return False
         prompt = self.get_prompt(content)
 
         if source_type == "pdf":
-            outcome = outcome_from_legacy_text(real_ai_analyse_forpdf(content, prompt))
+            outcome = analyze_pdf(content, prompt)
         else:
             outcome = analyze_text(prompt)
 

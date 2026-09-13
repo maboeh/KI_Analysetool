@@ -11,6 +11,7 @@ import shutil
 import os
 from datetime import datetime, timedelta
 from pathlib import Path
+from unittest.mock import patch
 
 from results_manager import ResultsManager
 from data_models import (
@@ -318,6 +319,23 @@ class TestResultsManager(unittest.TestCase):
         self.assertEqual(loaded_result.metadata.analysis_type, "updated_analysis")
         self.assertGreater(loaded_result.updated_at, original_updated_at)
     
+    def test_update_restores_json_when_replace_fails(self):
+        result_id = self.manager.save_result(self.sample_result1, "Original")
+        self.sample_result1.content = "Must not persist"
+        real_replace = os.replace
+
+        def replace_with_failure(source, destination):
+            if str(source).endswith(".tmp"):
+                raise OSError("replace failed")
+            return real_replace(source, destination)
+
+        with patch("results_manager.os.replace", side_effect=replace_with_failure):
+            with self.assertRaises(OSError):
+                self.manager.update_result(self.sample_result1)
+
+        loaded_result = self.manager.load_result(result_id)
+        self.assertEqual(loaded_result.content, "Dies ist ein Testinhalt für die erste Analyse.")
+
     def test_update_nonexistent_result(self):
         """Test updating a result that doesn't exist."""
         fake_result = self._create_sample_result()

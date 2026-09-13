@@ -2,10 +2,13 @@
 import os
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch, MagicMock
 from analysis import (
     AnalysisErrorCode,
+    analyze_pdf,
     analyze_text,
+    extract_content,
     extract_transkript,
     text_extraction_youtube_website,
 )
@@ -64,10 +67,67 @@ class TestAnalysis(unittest.TestCase):
             path = f.name
         try:
             result = text_extraction_youtube_website(path)
-            self.assertIn("PDF", result)
+            self.assertIn("pdf", result.lower())
             self.assertNotIn("%PDF-1.4", result)
         finally:
             os.unlink(path)
+
+    def test_extract_content_returns_typed_invalid_input_error(self):
+        outcome = extract_content("")
+        self.assertFalse(outcome.success)
+        self.assertEqual(outcome.error.code, AnalysisErrorCode.INVALID_INPUT)
+
+    def test_extract_content_reads_supported_local_text(self):
+        with tempfile.NamedTemporaryFile(suffix=".md", mode="w", encoding="utf-8", delete=False) as file:
+            file.write("Lokaler Inhalt")
+            path = file.name
+        try:
+            outcome = extract_content(path)
+            self.assertTrue(outcome.success)
+            self.assertEqual(outcome.content, "Lokaler Inhalt")
+            self.assertEqual(outcome.source_type, "file")
+        finally:
+            os.unlink(path)
+
+    def test_analyze_pdf_invalid_path_returns_typed_error(self):
+        outcome = analyze_pdf("missing.pdf", "Analysiere")
+        self.assertFalse(outcome.success)
+        self.assertEqual(outcome.error.code, AnalysisErrorCode.FILE_NOT_FOUND)
+
+    @patch('analysis.get_api_key', return_value="secret")
+    @patch('analysis.OpenAI')
+    def test_analyze_pdf_returns_typed_success_and_cleans_up(self, mock_openai, _mock_key):
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as pdf_file:
+            pdf_file.write(b"%PDF-1.4 test")
+            path = pdf_file.name
+        client = mock_openai.return_value
+        remote_file = SimpleNamespace(id="file-1")
+        assistant = SimpleNamespace(id="assistant-1")
+        thread = SimpleNamespace(id="thread-1")
+        run = SimpleNamespace(
+            id="run-1",
+            status="completed",
+            usage=SimpleNamespace(prompt_tokens=10, completion_tokens=5)
+        )
+        message = SimpleNamespace(
+            role="assistant",
+            content=[SimpleNamespace(text=SimpleNamespace(value="PDF result"))]
+        )
+        client.files.create.return_value = remote_file
+        client.beta.assistants.create.return_value = assistant
+        client.beta.threads.create.return_value = thread
+        client.beta.threads.runs.create.return_value = run
+        client.beta.threads.messages.list.return_value = SimpleNamespace(data=[message])
+        try:
+            outcome = analyze_pdf(path, "Analysiere")
+        finally:
+            os.unlink(path)
+        self.assertTrue(outcome.success)
+        self.assertEqual(outcome.content, "PDF result")
+        self.assertEqual(outcome.prompt_tokens + outcome.completion_tokens, 15)
+        client.files.delete.assert_called_once_with("file-1")
+        client.beta.assistants.delete.assert_called_once_with("assistant-1")
+        client.beta.threads.delete.assert_called_once_with("thread-1")
 
     @patch('analysis.get_api_key', return_value=None)
     def test_analyze_text_returns_typed_missing_key_error(self, _mock_key):

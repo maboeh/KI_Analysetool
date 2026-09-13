@@ -1282,6 +1282,7 @@ class EnhancedGui(BaseGui):
 
     def _show_onboarding(self):
         """Display a multi-step onboarding wizard."""
+        profile = self.user_profile_manager.profile
         dialog = tk.Toplevel(self.window)
         dialog.title("Willkommen beim KI Analysetool")
         dialog.geometry("650x420")

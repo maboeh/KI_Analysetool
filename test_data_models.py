@@ -11,7 +11,7 @@ from data_models import (
     ProcessedResult, StructuredData, SourceInfo, NamedEntity, NumericValue,
     TemporalValue, DataTable, DataRelationship, Visualization, Action,
     ResultMetadata, ChartConfig, ResultSummary, ExtractedContent,
-    ActionType, ChartType, EntityType, DataType,
+    ActionType, ChartType, EntityType, DataType, ResultStatus,
     create_default_actions, create_source_info_from_path
 )
 
@@ -402,6 +402,13 @@ class TestProcessedResult(unittest.TestCase):
         self.assertEqual(result.content, reconstructed.content)
         self.assertEqual(result.id, reconstructed.id)
         self.assertEqual(result.source_info.type, reconstructed.source_info.type)
+
+    def test_legacy_processed_result_without_status(self):
+        result_dict = ProcessedResult(content="Legacy result", metadata=self.metadata).to_dict()
+        result_dict.pop("status")
+        reconstructed = ProcessedResult.from_dict(result_dict)
+        self.assertEqual(reconstructed.status, ResultStatus.SUCCESS)
+        self.assertEqual(reconstructed.content, "Legacy result")
     
     def test_processed_result_methods(self):
         """Test ProcessedResult utility methods."""

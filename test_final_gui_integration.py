@@ -24,6 +24,7 @@ except ImportError as e:
     IMPORT_ERROR = str(e)
 
 from Gui import Gui as BaseGui
+from analysis import AnalysisOutcome
 from data_models import ProcessedResult, StructuredData, ResultMetadata
 
 
@@ -37,9 +38,12 @@ class TestFinalGUIIntegration(unittest.TestCase):
         # Create test tkinter window
         self.root = tk.Tk()
         self.root.withdraw()  # Hide window during tests
+        self.onboarding_patcher = patch.object(EnhancedGui, '_maybe_show_onboarding')
+        self.onboarding_patcher.start()
         
     def tearDown(self):
         """Clean up test environment."""
+        self.onboarding_patcher.stop()
         try:
             self.root.destroy()
         except:
@@ -79,11 +83,11 @@ class TestFinalGUIIntegration(unittest.TestCase):
             
     @unittest.skipUnless(ENHANCED_GUI_AVAILABLE, "Enhanced GUI not available")
     @patch('config.check_api_key_exists', return_value=True)
-    @patch('analysis.real_ai_analyse_fortext')
-    def test_enhanced_analysis_workflow(self, mock_analysis):
+    @patch('enhanced_gui_integration_final.analyze_text')
+    def test_enhanced_analysis_workflow(self, mock_analysis, _mock_key):
         """Test complete enhanced analysis workflow."""
         # Mock AI analysis
-        mock_analysis.return_value = "Enhanced analysis result with data"
+        mock_analysis.return_value = AnalysisOutcome(content="Enhanced analysis result with data")
         
         gui = EnhancedGui(self.root)
         
@@ -95,16 +99,17 @@ class TestFinalGUIIntegration(unittest.TestCase):
         gui._on_enhanced_analysis_requested(test_content, test_source, "test_analysis")
         
         # Wait for background processing (in real app, this would be threaded)
-        self.root.update()
+        gui.processing_thread.join(timeout=5)
         
         # Verify analysis was called
         mock_analysis.assert_called()
         
     @unittest.skipUnless(ENHANCED_GUI_AVAILABLE, "Enhanced GUI not available")
     @patch('config.check_api_key_exists', return_value=True)
-    def test_results_display_integration(self):
+    def test_results_display_integration(self, _mock_key):
         """Test results display integration."""
         gui = EnhancedGui(self.root)
+        gui.auto_save_enabled = False
         
         # Create mock result
         mock_result = ProcessedResult(
@@ -130,7 +135,7 @@ class TestFinalGUIIntegration(unittest.TestCase):
         
     @unittest.skipUnless(ENHANCED_GUI_AVAILABLE, "Enhanced GUI not available")
     @patch('config.check_api_key_exists', return_value=True)
-    def test_file_handling_integration(self):
+    def test_file_handling_integration(self, _mock_key):
         """Test file handling integration."""
         gui = EnhancedGui(self.root)
         
@@ -147,7 +152,7 @@ class TestFinalGUIIntegration(unittest.TestCase):
         
     @unittest.skipUnless(ENHANCED_GUI_AVAILABLE, "Enhanced GUI not available")
     @patch('config.check_api_key_exists', return_value=True)
-    def test_action_buttons_integration(self):
+    def test_action_buttons_integration(self, _mock_key):
         """Test action buttons integration."""
         gui = EnhancedGui(self.root)
         
@@ -159,7 +164,7 @@ class TestFinalGUIIntegration(unittest.TestCase):
         
     @unittest.skipUnless(ENHANCED_GUI_AVAILABLE, "Enhanced GUI not available")
     @patch('config.check_api_key_exists', return_value=True)
-    def test_menu_integration(self):
+    def test_menu_integration(self, _mock_key):
         """Test enhanced menu integration."""
         gui = EnhancedGui(self.root)
         
@@ -175,7 +180,7 @@ class TestFinalGUIIntegration(unittest.TestCase):
         
     @unittest.skipUnless(ENHANCED_GUI_AVAILABLE, "Enhanced GUI not available")
     @patch('config.check_api_key_exists', return_value=True)
-    def test_progress_indicator_integration(self):
+    def test_progress_indicator_integration(self, _mock_key):
         """Test progress indicator integration."""
         gui = EnhancedGui(self.root)
         
@@ -184,14 +189,13 @@ class TestFinalGUIIntegration(unittest.TestCase):
         
         # Test progress operations
         gui.progress_indicator.start("Test operation")
-        self.root.update()
-        
+        self.assertTrue(gui.progress_indicator.is_visible)
         gui.progress_indicator.stop()
-        self.root.update()
+        self.assertFalse(gui.progress_indicator.is_visible)
         
     @unittest.skipUnless(ENHANCED_GUI_AVAILABLE, "Enhanced GUI not available")
     @patch('config.check_api_key_exists', return_value=True)
-    def test_error_handling_integration(self):
+    def test_error_handling_integration(self, _mock_key):
         """Test error handling integration."""
         gui = EnhancedGui(self.root)
         
@@ -202,7 +206,7 @@ class TestFinalGUIIntegration(unittest.TestCase):
             
     @unittest.skipUnless(ENHANCED_GUI_AVAILABLE, "Enhanced GUI not available")
     @patch('config.check_api_key_exists', return_value=True)
-    def test_backward_compatibility_methods(self):
+    def test_backward_compatibility_methods(self, _mock_key):
         """Test that enhanced GUI maintains backward compatibility."""
         gui = EnhancedGui(self.root)
         
@@ -245,10 +249,10 @@ class TestFinalGUIIntegration(unittest.TestCase):
                 gui = EnhancedGui(self.root)
                 
                 # Test settings dialog creation
+                before = set(self.root.winfo_children())
                 gui._show_settings_dialog()
-                
-                # Should create dialog without errors
-                self.root.update()
+                created = set(self.root.winfo_children()) - before
+                self.assertTrue(any(isinstance(widget, tk.Toplevel) for widget in created))
 
 
 class TestGUIComponentIntegration(unittest.TestCase):
@@ -268,7 +272,7 @@ class TestGUIComponentIntegration(unittest.TestCase):
             
     @unittest.skipUnless(ENHANCED_GUI_AVAILABLE, "Enhanced GUI not available")
     @patch('config.check_api_key_exists', return_value=True)
-    def test_tab_switching_integration(self):
+    def test_tab_switching_integration(self, _mock_key):
         """Test switching between different result tabs."""
         gui = EnhancedGui(self.root)
         
@@ -276,19 +280,19 @@ class TestGUIComponentIntegration(unittest.TestCase):
         if hasattr(gui, 'result_notebook'):
             # Switch to visualization tab
             gui.result_notebook.select(gui.viz_frame)
-            self.root.update()
+            self.assertEqual(gui.result_notebook.select(), str(gui.viz_frame))
             
             # Switch to export tab
             gui.result_notebook.select(gui.export_frame)
-            self.root.update()
+            self.assertEqual(gui.result_notebook.select(), str(gui.export_frame))
             
             # Switch to browser tab
             gui.result_notebook.select(gui.browser_frame)
-            self.root.update()
+            self.assertEqual(gui.result_notebook.select(), str(gui.browser_frame))
             
     @unittest.skipUnless(ENHANCED_GUI_AVAILABLE, "Enhanced GUI not available")
     @patch('config.check_api_key_exists', return_value=True)
-    def test_component_communication(self):
+    def test_component_communication(self, _mock_key):
         """Test communication between different GUI components."""
         gui = EnhancedGui(self.root)
         

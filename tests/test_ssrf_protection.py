@@ -47,8 +47,8 @@ class TestSSRFProtection(unittest.TestCase):
             with self.assertRaises(SecurityException):
                 validate_url("http://[::1]")
 
-    @patch('analysis.requests.Session')
-    @patch('analysis.validate_url')
+    @patch('security.requests.Session')
+    @patch('security.validate_url')
     def test_extract_text_from_website_redirect_loop(self, mock_validate_url, mock_session_cls):
         """Test that redirect loops are handled."""
         mock_session = mock_session_cls.return_value
@@ -62,16 +62,17 @@ class TestSSRFProtection(unittest.TestCase):
         response2.is_redirect = True
         response2.headers = {'Location': 'http://example.com/1'}
 
-        mock_session.get.side_effect = [response1, response2, response1, response2, response1, response2]
+        mock_session.get.side_effect = [response1, response2] * 6
 
         # validate_url should pass
         mock_validate_url.return_value = None
 
-        result = analysis.extract_text_from_website("http://example.com/1")
-        self.assertEqual(result, "Error: Too many redirects")
+        with self.assertRaises(SecurityException) as cm:
+            analysis.extract_text_from_website("http://example.com/1")
+        self.assertIn("Too many redirects", str(cm.exception))
 
-    @patch('analysis.requests.Session')
-    @patch('analysis.validate_url')
+    @patch('security.requests.Session')
+    @patch('security.validate_url')
     def test_extract_text_from_website_ssrf_on_redirect(self, mock_validate_url, mock_session_cls):
         """Test that SSRF checks are applied on redirects."""
         mock_session = mock_session_cls.return_value
@@ -83,17 +84,16 @@ class TestSSRFProtection(unittest.TestCase):
 
         mock_session.get.side_effect = [response1]
 
-        # First call passes, second call (redirect) fails
-        mock_validate_url.side_effect = [None, SecurityException("Blocked IP")]
+        # First extraction and request checks pass, redirect validation fails
+        mock_validate_url.side_effect = [None, None, None, SecurityException("Blocked IP")]
 
-        result = analysis.extract_text_from_website("http://example.com")
+        with self.assertRaises(SecurityException) as cm:
+            analysis.extract_text_from_website("http://example.com")
+        self.assertIn("Blocked IP", str(cm.exception))
 
-        # Now it catches Exception and returns string
-        self.assertIn("Security Error on redirect", result)
-
-        # Verify validate_url was called twice
-        self.assertEqual(mock_validate_url.call_count, 2)
-        mock_validate_url.assert_called_with('http://192.168.1.1/admin')
+        # Verify extraction, request, and redirect URLs were validated
+        self.assertEqual(mock_validate_url.call_count, 4)
+        mock_validate_url.assert_any_call('http://192.168.1.1/admin')
 
 if __name__ == '__main__':
     unittest.main()

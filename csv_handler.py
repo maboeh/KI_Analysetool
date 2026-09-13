@@ -188,7 +188,8 @@ class CSVHandler:
                 preview_data.append(row_dict)
             
             # Get total row count
-            total_rows = sum(1 for _ in open(file_path, 'r', encoding=encoding))
+            with open(file_path, 'r', encoding=encoding) as row_file:
+                total_rows = sum(1 for _ in row_file)
             if has_header:
                 total_rows -= 1  # Subtract header row
             

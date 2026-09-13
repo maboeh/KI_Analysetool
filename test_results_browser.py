@@ -214,8 +214,9 @@ class TestResultsBrowser(unittest.TestCase):
             # Open button should be disabled (multiple selection)
             self.assertEqual(str(self.browser.open_button['state']), 'disabled')
     
+    @patch('tkinter.messagebox.showinfo')
     @patch('tkinter.messagebox.askyesno')
-    def test_delete_results(self, mock_askyesno):
+    def test_delete_results(self, mock_askyesno, _mock_showinfo):
         """Test deleting selected results."""
         mock_askyesno.return_value = True
         
@@ -264,8 +265,9 @@ class TestResultsBrowser(unittest.TestCase):
         # Should show the new result
         self.assertEqual(len(self.browser.current_results), initial_count + 1)
     
+    @patch('tkinter.messagebox.showinfo')
     @patch('tkinter.filedialog.askdirectory')
-    def test_export_results(self, mock_askdir):
+    def test_export_results(self, mock_askdir, _mock_showinfo):
         """Test exporting selected results."""
         mock_askdir.return_value = self.temp_dir
         

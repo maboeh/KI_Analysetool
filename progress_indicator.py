@@ -208,6 +208,20 @@ class ProgressIndicator:
         # Start animation for indeterminate operations
         if operation_type in [OperationType.OCR_PROCESSING, OperationType.ANALYSIS]:
             self._start_animation()
+
+    def start(self, message: str):
+        self.start_operation(
+            OperationType.ANALYSIS,
+            message,
+            [ProgressStep(name=message, description=message)]
+        )
+
+    def stop(self):
+        if self.current_progress:
+            self.current_progress.status = ProgressStatus.COMPLETED
+            self.current_progress.progress_percentage = 100.0
+        self._stop_animation()
+        self._hide_progress()
     
     def update_progress(self, step_index: int, message: str = "", 
                        progress_percentage: Optional[float] = None):
