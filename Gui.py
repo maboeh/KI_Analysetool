@@ -37,8 +37,13 @@ class Gui:
     def __init__(self, window):
         self.window = window
         self.window.title("KI Analysetool")
-        self.window.geometry("1800x1000")
-        self.window.minsize(1500, 850)
+        screen_width = self.window.winfo_screenwidth()
+        screen_height = self.window.winfo_screenheight()
+        window_width = min(1800, max(900, screen_width - 100))
+        window_height = min(1000, max(650, screen_height - 100))
+        self.window.geometry(f"{window_width}x{window_height}")
+        self.window.minsize(800, 600)
+        self.layout_orientation = tk.VERTICAL if screen_width < 1200 else tk.HORIZONTAL
 
         if not check_api_key_exists():
             self.show_api_key_dialog()
@@ -94,11 +99,15 @@ class Gui:
         self.main_frame.pack(fill="both", expand=True)
 
         # Horizontal container for sources (left) and analysis (right)
-        self.content_frame = ttk.Frame(self.main_frame)
+        self.content_frame = ttk.PanedWindow(self.main_frame, orient=self.layout_orientation)
         self.content_frame.pack(fill=tk.BOTH, expand=True)
 
         self.setupSourcesFrame()
         self.analysis_Frame()
+        self.content_frame.add(self.sources_frame, weight=1)
+        self.content_frame.add(self.analysis_frame, weight=1)
+        self.content_frame.bind("<ButtonRelease-1>", self._save_pane_position)
+        self.window.after(200, self._restore_pane_position)
 
         # Status bar (bottom, full width)
         self.status_var = tk.StringVar()
@@ -106,15 +115,45 @@ class Gui:
         self.status_bar = ttk.Label(self.main_frame, textvariable=self.status_var, relief=tk.SUNKEN, anchor=tk.W)
         self.status_bar.pack(fill=tk.X, pady=(15, 0))
 
+    def _pane_setting_key(self):
+        orientation = "vertical" if self.layout_orientation == tk.VERTICAL else "horizontal"
+        return f"pane_position_{orientation}"
+
+    def _restore_pane_position(self):
+        try:
+            self.window.update_idletasks()
+            default_position = (
+                self.content_frame.winfo_height() // 2
+                if self.layout_orientation == tk.VERTICAL
+                else self.content_frame.winfo_width() // 2
+            )
+            position = default_position
+            if hasattr(self, "user_profile_manager"):
+                position = self.user_profile_manager.get_setting(self._pane_setting_key(), default_position)
+            self.content_frame.sashpos(0, max(200, int(position)))
+        except (tk.TclError, TypeError, ValueError):
+            pass
+
+    def _save_pane_position(self, _event=None):
+        if not hasattr(self, "user_profile_manager"):
+            return
+        try:
+            self.user_profile_manager.set_setting(
+                self._pane_setting_key(),
+                self.content_frame.sashpos(0)
+            )
+        except tk.TclError:
+            pass
+
     def setupSourcesFrame(self):
         # Input-Source Frame (left side)
         self.sources_frame = ttk.LabelFrame(self.content_frame, text="Inhaltsquellen", padding=15)
-        self.sources_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 10))
         self.sources_frame.columnconfigure(0, weight=1)
+        self.sources_frame.rowconfigure(0, weight=1)
 
         # Tabs for different input types
         self.input_tabs = ttk.Notebook(self.sources_frame)
-        self.input_tabs.grid(row=0, column=0, sticky=tk.W + tk.E)
+        self.input_tabs.grid(row=0, column=0, sticky=tk.NSEW)
 
         self.setupWebsiteTab()
         self.setupYoutubeTab()
@@ -209,7 +248,6 @@ class Gui:
     def analysis_Frame(self):
         # Analysis and results frame (right side)
         self.analysis_frame = ttk.LabelFrame(self.content_frame, text="Analyse & Ergebnisse", padding=10)
-        self.analysis_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
         self.analysis_frame.rowconfigure(5, weight=0)
         self.analysis_frame.rowconfigure(6, weight=1)
         self.analysis_frame.columnconfigure(0, weight=1)
@@ -266,8 +304,12 @@ class Gui:
 
         question_btn_frame = ttk.Frame(self.analysis_frame)
         question_btn_frame.grid(row=3, column=0, sticky=tk.W + tk.E, pady=(0, 15))
-        question_button = ttk.Button(question_btn_frame, text="Frage senden", command=self.send_question)
-        question_button.pack(side=tk.LEFT)
+        self.analysis_button = ttk.Button(
+            question_btn_frame,
+            text="Analyse starten",
+            command=self.send_question
+        )
+        self.analysis_button.pack(side=tk.LEFT)
         add_help_indicator(question_btn_frame,
                           "Sendet den Prompt zusammen mit dem extrahierten Inhalt an die KI und zeigt das Ergebnis an.")
 

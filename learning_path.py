@@ -45,7 +45,7 @@ DEFAULT_LEARNING_STEPS: List[LearningStep] = [
         description="Führe eine beliebige Analyse durch, um das Tool kennenzulernen.",
         help_text=(
             "Wähle den Tab 'Text', gib einen kurzen Text ein, wähle 'Zusammenfassung' "
-            "und klicke auf 'Frage senden'."
+            "und klicke auf 'Analyse starten'."
         ),
         next_step_id="try_follow_up"
     ),

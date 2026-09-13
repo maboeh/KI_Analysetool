@@ -192,6 +192,25 @@ class TestExtendedInputTabs(unittest.TestCase):
         return widgets
     
     @patch('extended_input_tabs.FileHandlerRouter')
+    def test_drop_paths_support_spaces(self, mock_router_class):
+        mock_router_class.return_value = Mock()
+        tabs = ExtendedInputTabs(self.notebook, self.status_callback)
+        spaced_path = os.path.join(self.temp_dir, "file with spaces.txt")
+        Path(spaced_path).touch()
+        event = Mock(data=f"{{{spaced_path}}}")
+        self.assertEqual(tabs._paths_from_drop(event), [spaced_path])
+
+    @patch('extended_input_tabs.FileHandlerRouter')
+    def test_csv_drop_reuses_file_selection_state(self, mock_router_class):
+        mock_router_class.return_value = Mock()
+        tabs = ExtendedInputTabs(self.notebook, self.status_callback)
+        with patch.object(tabs, "update_csv_preview"):
+            event = Mock(data=self.test_csv_file)
+            result = tabs._drop_csv_files(event)
+        self.assertEqual(result, "break")
+        self.assertEqual(tabs.current_csv_files, [self.test_csv_file])
+
+    @patch('extended_input_tabs.FileHandlerRouter')
     def test_csv_file_management(self, mock_router_class):
         """Test CSV file list management."""
         mock_router = Mock()

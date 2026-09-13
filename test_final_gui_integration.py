@@ -11,6 +11,7 @@ import tempfile
 import os
 import shutil
 import tkinter as tk
+from tkinter import ttk
 from unittest.mock import Mock, patch, MagicMock
 import pandas as pd
 from datetime import datetime
@@ -66,7 +67,17 @@ class TestFinalGUIIntegration(unittest.TestCase):
             self.assertTrue(hasattr(gui, 'results_display'))
             self.assertTrue(hasattr(gui, 'action_buttons'))
             self.assertTrue(hasattr(gui, 'visualization_panel'))
+            self.assertIsInstance(gui.content_frame, ttk.PanedWindow)
+            self.assertLessEqual(self.root.minsize()[0], 800)
+            self.assertEqual(gui.analysis_button.cget("text"), "Analyse starten")
             
+    def test_small_screen_uses_vertical_layout(self):
+        with patch('Gui.check_api_key_exists', return_value=True):
+            with patch.object(self.root, 'winfo_screenwidth', return_value=1024):
+                gui = BaseGui(self.root)
+        self.assertEqual(gui.layout_orientation, tk.VERTICAL)
+        self.assertIsInstance(gui.content_frame, ttk.PanedWindow)
+
     def test_base_gui_backward_compatibility(self):
         """Test that base GUI still works without enhanced features."""
         with patch('config.check_api_key_exists', return_value=True):

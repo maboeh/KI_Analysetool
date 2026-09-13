@@ -415,6 +415,10 @@ class EnhancedGui(BaseGui):
     def _on_status_update(self, message: str):
         """Handle status updates from enhanced components."""
         self.status_var.set(message)
+
+    def _set_analysis_button_state(self, enabled: bool):
+        if hasattr(self, "analysis_button"):
+            self.analysis_button.configure(state=tk.NORMAL if enabled else tk.DISABLED)
         
     def _on_file_selected(self, file_paths: List[str], file_type: str):
         """Handle file selection from enhanced input tabs."""
@@ -429,6 +433,7 @@ class EnhancedGui(BaseGui):
             predefined_prompt = self.get_prompt(content)
 
         # Start analysis in background thread
+        self._set_analysis_button_state(False)
         self.processing_thread = threading.Thread(
             target=self._process_enhanced_analysis,
             args=(content, source_path, analysis_type, custom_prompt, predefined_prompt)
@@ -485,6 +490,7 @@ class EnhancedGui(BaseGui):
             self._safe_after(0, self._show_error, error_msg)
         finally:
             self._safe_after(0, self._safe_progress_stop)
+            self._safe_after(0, self._set_analysis_button_state, True)
             
     def _display_enhanced_result(self, result: ProcessedResult):
         """Display enhanced analysis result."""
@@ -1325,7 +1331,7 @@ class EnhancedGui(BaseGui):
                 "text": (
                     "1. Wähle links eine Quelle aus (Text, Webseite, PDF, …).\n"
                     "2. Gib oben rechts optional einen eigenen Prompt ein oder wähle einen Analyse-Typ.\n"
-                    "3. Klicke auf 'Frage senden' (oder drücke Strg + Enter).\n"
+                    "3. Klicke auf 'Analyse starten' (oder drücke Strg + Enter).\n"
                     "4. Nutze rechts Folgeaktionen wie Zusammenfassen, Vertiefen oder Übersetzen."
                 )
             },
@@ -1438,7 +1444,7 @@ class EnhancedGui(BaseGui):
                 )
                 self.combobox.set("Zusammenfassung")
             finish()
-            self.status_var.set("Beispiel vorbereitet – klicken Sie auf 'Frage senden'.")
+            self.status_var.set("Beispiel vorbereitet – klicken Sie auf 'Analyse starten'.")
 
         next_btn.config(command=next_action)
         back_btn.config(command=back_action)

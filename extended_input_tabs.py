@@ -18,6 +18,14 @@ from image_handler import ImageHandler
 from csv_handler import CSVHandler
 from help_tooltip import add_help_indicator
 
+try:
+    from tkinterdnd2 import DND_FILES, TkinterDnD
+    DND_AVAILABLE = True
+except ImportError:
+    DND_FILES = None
+    TkinterDnD = None
+    DND_AVAILABLE = False
+
 
 class ExtendedInputTabs:
     """Extended input tabs with support for Excel, images, CSV, and multi-file processing."""
@@ -64,6 +72,7 @@ class ExtendedInputTabs:
         self.setup_image_tab()
         self.setup_csv_tab()
         self.setup_multi_file_tab()
+        self._setup_drag_and_drop()
 
     def setup_text_tab(self):
         """Tab für direkte Texteingabe (ohne Datei-Upload)."""
@@ -89,8 +98,9 @@ class ExtendedInputTabs:
         self.tab_frames['excel'] = excel_tab
         
         # File selection section
-        file_frame = ttk.LabelFrame(excel_tab, text="Excel-Datei auswählen", padding=10)
+        file_frame = ttk.LabelFrame(excel_tab, text="Excel-Datei auswählen oder hier ablegen", padding=10)
         file_frame.pack(fill=tk.X, pady=(0, 10))
+        self.excel_drop_target = file_frame
         
         # File path display
         self.excel_file_var = tk.StringVar()
@@ -148,8 +158,9 @@ class ExtendedInputTabs:
         self.tab_frames['image'] = image_tab
         
         # File selection section
-        file_frame = ttk.LabelFrame(image_tab, text="Bild- oder PDF-Datei auswählen", padding=10)
+        file_frame = ttk.LabelFrame(image_tab, text="Bild- oder PDF-Datei auswählen oder hier ablegen", padding=10)
         file_frame.pack(fill=tk.X, pady=(0, 10))
+        self.image_drop_target = file_frame
         
         # File path display
         self.image_file_var = tk.StringVar()
@@ -216,8 +227,9 @@ class ExtendedInputTabs:
         self.tab_frames['csv'] = csv_tab
         
         # File selection section
-        file_frame = ttk.LabelFrame(csv_tab, text="CSV/Text-Dateien auswählen", padding=10)
+        file_frame = ttk.LabelFrame(csv_tab, text="CSV/Text-Dateien auswählen oder hier ablegen", padding=10)
         file_frame.pack(fill=tk.X, pady=(0, 10))
+        self.csv_drop_target = file_frame
         
         # File list
         self.csv_files_listbox = tk.Listbox(file_frame, height=4)
@@ -298,8 +310,9 @@ class ExtendedInputTabs:
         instructions.pack(anchor=tk.W, pady=(0, 10))
         
         # File selection section
-        file_frame = ttk.LabelFrame(multi_tab, text="Ausgewählte Dateien", padding=10)
+        file_frame = ttk.LabelFrame(multi_tab, text="Ausgewählte Dateien – Dateien hier ablegen", padding=10)
         file_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+        self.multi_drop_target = file_frame
         
         # File list with details
         columns = ("Datei", "Typ", "Größe", "Status")
@@ -343,12 +356,12 @@ class ExtendedInputTabs:
         add_help_indicator(clear_multi_frame,
                           "Entfernt alle Dateien aus der Liste.")
         
-        analyze_btn = ttk.Button(multi_btn_frame, text="Dateien analysieren", 
+        analyze_btn = ttk.Button(multi_btn_frame, text="Vorschau erstellen",
                                 command=self.analyze_selected_files)
         analyze_btn.pack(side=tk.RIGHT)
         add_help_indicator(multi_btn_frame,
-                          "Startet die kombinierte Analyse aller ausgewählten Dateien. "
-                          "Die Inhalte werden extrahiert und für die KI-Analyse vorbereitet.")
+                          "Erstellt eine Vorschau der kombinierten Dateiinhalte. "
+                          "Die eigentliche KI-Analyse starten Sie anschließend über 'Analyse starten'.")
         
         # Summary section
         summary_frame = ttk.LabelFrame(multi_tab, text="Zusammenfassung", padding=10)
@@ -357,6 +370,84 @@ class ExtendedInputTabs:
         self.multi_summary_var = tk.StringVar()
         self.multi_summary_label = ttk.Label(summary_frame, textvariable=self.multi_summary_var)
         self.multi_summary_label.pack(anchor=tk.W)
+
+    def _setup_drag_and_drop(self):
+        if not DND_AVAILABLE:
+            return
+        try:
+            TkinterDnD.require(self.parent_notebook.winfo_toplevel())
+            targets = (
+                (self.excel_drop_target, self._drop_excel_files),
+                (self.image_drop_target, self._drop_image_files),
+                (self.csv_drop_target, self._drop_csv_files),
+                (self.multi_drop_target, self._drop_multiple_files),
+            )
+            for widget, callback in targets:
+                widget.drop_target_register(DND_FILES)
+                widget.dnd_bind("<<Drop>>", callback)
+        except (tk.TclError, RuntimeError, AttributeError) as exc:
+            logging.warning("Drag & Drop ist nicht verfügbar: %s", exc)
+
+    def _paths_from_drop(self, event) -> List[str]:
+        try:
+            paths = self.parent_notebook.tk.splitlist(event.data)
+        except (tk.TclError, AttributeError):
+            return []
+        return [os.path.abspath(path) for path in paths if os.path.isfile(path)]
+
+    def _drop_excel_files(self, event):
+        paths = [path for path in self._paths_from_drop(event) if Path(path).suffix.lower() in {".xlsx", ".xls"}]
+        if paths:
+            self._set_excel_file(paths[0])
+        else:
+            messagebox.showwarning("Dateityp nicht unterstützt", "Bitte legen Sie eine Excel-Datei ab.")
+        return "break"
+
+    def _drop_image_files(self, event):
+        allowed = {".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".tif", ".pdf"}
+        paths = [path for path in self._paths_from_drop(event) if Path(path).suffix.lower() in allowed]
+        if paths:
+            self._set_image_file(paths[0])
+        else:
+            messagebox.showwarning("Dateityp nicht unterstützt", "Bitte legen Sie eine Bild- oder PDF-Datei ab.")
+        return "break"
+
+    def _drop_csv_files(self, event):
+        allowed = {".csv", ".tsv", ".txt"}
+        self._add_csv_paths([
+            path for path in self._paths_from_drop(event)
+            if Path(path).suffix.lower() in allowed
+        ])
+        return "break"
+
+    def _drop_multiple_files(self, event):
+        self._add_multiple_paths(self._paths_from_drop(event))
+        return "break"
+
+    def _set_excel_file(self, file_path: str):
+        self.current_excel_file = file_path
+        self.excel_file_var.set(f"Datei: {Path(file_path).name}")
+        self.status_callback("Excel-Datei wird geladen...")
+        threading.Thread(target=self.load_excel_info, daemon=True).start()
+
+    def _set_image_file(self, file_path: str):
+        self.current_image_file = file_path
+        self.image_file_var.set(f"Datei: {Path(file_path).name}")
+        self.process_image_ocr(preview_only=True)
+
+    def _add_csv_paths(self, file_paths: List[str]):
+        for file_path in file_paths:
+            if file_path not in self.current_csv_files:
+                self.current_csv_files.append(file_path)
+                self.csv_files_listbox.insert(tk.END, Path(file_path).name)
+        self.update_csv_preview()
+
+    def _add_multiple_paths(self, file_paths: List[str]):
+        for file_path in file_paths:
+            if file_path not in self.selected_files:
+                self.selected_files.append(file_path)
+                self.add_file_to_tree(file_path)
+        self.update_multi_summary()
     
     def select_excel_file(self):
         """Handle Excel file selection."""
@@ -369,12 +460,8 @@ class ExtendedInputTabs:
         )
         
         if file_path:
-            self.current_excel_file = file_path
-            self.excel_file_var.set(f"Datei: {Path(file_path).name}")
-            self.status_callback("Excel-Datei wird geladen...")
-            
             # Load Excel file info in background
-            threading.Thread(target=self.load_excel_info, daemon=True).start()
+            self._set_excel_file(file_path)
     
     def load_excel_info(self):
         """Load Excel file information in background thread."""
@@ -491,11 +578,8 @@ class ExtendedInputTabs:
         )
         
         if file_path:
-            self.current_image_file = file_path
-            self.image_file_var.set(f"Datei: {Path(file_path).name}")
-            
             # Auto-process OCR for quick preview
-            self.process_image_ocr(preview_only=True)
+            self._set_image_file(file_path)
     
     def process_image_ocr(self, preview_only=False):
         """Process image OCR."""
@@ -582,12 +666,7 @@ class ExtendedInputTabs:
             ]
         )
         
-        for file_path in file_paths:
-            if file_path not in self.current_csv_files:
-                self.current_csv_files.append(file_path)
-                self.csv_files_listbox.insert(tk.END, Path(file_path).name)
-        
-        self.update_csv_preview()
+        self._add_csv_paths(list(file_paths))
     
     def remove_csv_file(self):
         """Remove selected CSV file."""
@@ -672,12 +751,7 @@ class ExtendedInputTabs:
             ]
         )
         
-        for file_path in file_paths:
-            if file_path not in self.selected_files:
-                self.selected_files.append(file_path)
-                self.add_file_to_tree(file_path)
-        
-        self.update_multi_summary()
+        self._add_multiple_paths(list(file_paths))
     
     def add_file_to_tree(self, file_path):
         """Add file to multi-file tree."""
