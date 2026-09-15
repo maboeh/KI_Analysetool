@@ -31,6 +31,7 @@ class TestMigrations(unittest.TestCase):
             tables = {row[0] for row in conn.execute(
                 "SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
         for table in ("results", "projects", "recipes", "result_versions",
+                      "batch_jobs", "batch_items", "eval_suites", "eval_runs",
                       "schema_migrations"):
             self.assertIn(table, tables)
 

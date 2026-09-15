@@ -9,6 +9,7 @@ GUI_TESTS = {
     "test_action_buttons.py",
     "test_command_palette.py",
     "test_enhanced_gui_integration.py",
+    "test_evaluation_ui.py",
     "test_excel_export_ui.py",
     "test_extended_input_tabs.py",
     "test_final_gui_integration.py",

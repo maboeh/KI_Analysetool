@@ -49,6 +49,7 @@ IMPLEMENTED_FEATURES = frozenset({
     "cost_estimate",
     "drag_drop",
     "empty_states",
+    "evaluation_suite",
     "evidence_validation",
     "excel_export",
     "favorites",

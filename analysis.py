@@ -159,14 +159,8 @@ class AnalysisSession:
                      model: Optional[str] = None):
         with self._lock:
             self.total_tokens_used += prompt_tokens + completion_tokens
-            # Unbekannte (z. B. lokale) Modelle haben keine Cloud-Kosten.
-            model_info = AVAILABLE_MODELS.get(
-                model or self._model,
-                {"cost_per_1k_input": 0.0, "cost_per_1k_output": 0.0})
-            self.total_cost_estimate += (
-                prompt_tokens * model_info["cost_per_1k_input"] / 1000 +
-                completion_tokens * model_info["cost_per_1k_output"] / 1000
-            )
+            self.total_cost_estimate += calculate_cost(
+                prompt_tokens, completion_tokens, model or self._model)
 
     def set_budget(self, limit_usd: Optional[float]):
         """Setzt ein optionales Sitzungsbudget in USD (None = unbegrenzt)."""
@@ -200,6 +194,21 @@ class AnalysisSession:
 
 # Default session for backward-compatible module-level functions.
 _default_session = AnalysisSession()
+
+
+def calculate_cost(prompt_tokens: int, completion_tokens: int,
+                   model: Optional[str] = None) -> float:
+    """Berechnet die geschätzten Kosten (USD) aus Tokenzahlen und Modell.
+
+    Unbekannte (z. B. lokale) Modelle haben keine Cloud-Kosten → 0.0.
+    """
+    model_info = AVAILABLE_MODELS.get(
+        model or _default_session.current_model,
+        {"cost_per_1k_input": 0.0, "cost_per_1k_output": 0.0})
+    return (
+        prompt_tokens * model_info["cost_per_1k_input"] / 1000 +
+        completion_tokens * model_info["cost_per_1k_output"] / 1000
+    )
 
 
 def set_model(model: str, allow_unknown: bool = False):

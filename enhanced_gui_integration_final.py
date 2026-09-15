@@ -479,6 +479,10 @@ class EnhancedGui(BaseGui):
             "quality.playground", "Prompt-Playground", "Qualität",
             self._show_prompt_playground, shortcut="Ctrl+Shift+P",
             keywords=("prompt", "varianten", "modelle")))
+        register(Command(
+            "quality.evaluation", "Evaluationssuite", "Qualität",
+            self._show_evaluation_dialog,
+            keywords=("eval", "test", "qualität", "vergleich", "benchmark")))
 
         # Kategorie Einstellungen (inkl. Favoriten)
         register(Command(
@@ -1926,6 +1930,20 @@ class EnhancedGui(BaseGui):
         models = [m["id"] if isinstance(m, dict) else m for m in AVAILABLE_MODELS]
         PromptPlaygroundDialog(self.window, content, models,
                                self._playground_analyze)
+
+    def _show_evaluation_dialog(self):
+        """Öffnet die Evaluationssuite (gespeicherte Testfälle × Varianten)."""
+        from analysis import analyze_with_prompt, get_model
+        from evaluation import EvaluationStore
+        from evaluation_ui import EvaluationDialog
+        store = EvaluationStore(self.results_manager.db_path)
+        models = [m["id"] if isinstance(m, dict) else m for m in AVAILABLE_MODELS]
+        EvaluationDialog(
+            self.window, store, models,
+            analyze_fn=analyze_with_prompt,
+            default_model=get_model(),
+            privacy_check=self.privacy_check_enabled,
+        )
 
     def _reload_current_result(self):
         """Lädt das aktuelle Ergebnis nach Bearbeitung/Rollback neu."""

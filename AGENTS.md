@@ -44,6 +44,7 @@
 - **Quellenbelege:** `evidence.py` (Zitat-/Referenz-Extraktion + Validierung gegen Quelltext; nur wörtliche Treffer sind „verified")
 - **Smart Charts:** `column_analysis.py` (Spaltenrollen numeric/date/categorical/text, Fehlwert-Handling, begründete Diagrammvorschläge)
 - **Workspace-UI:** `workspace_ui.py` (Projekte, Rezepte, Ergebnis-Editor, Versionen, Batch, Evidence, Daten-Editor, Chart-Vorschläge, Prompt-Playground)
+- **Evaluation:** `evaluation.py` (UI-freie Evaluationssuite: Suites/Testfälle, deterministische Checks, Läufe, Markdown-Bericht, `EvaluationStore` in results.db), `evaluation_ui.py` (EvaluationDialog + CaseEditorDialog mit Erwartungs-Zeilensyntax)
 - **Lernpfad:** `learning_path.py` (geführte Schritte vom Anfänger zum Experten)
 - **Benutzerprofil:** `user_profile.py` (Erfahrungsgrad, Onboarding-Status, Fortschritt)
 - **Prompt-Bibliothek:** `prompt_library.py` (wiederverwendbare Vorlagen mit Erklärungen)

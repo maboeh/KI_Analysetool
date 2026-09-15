@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import List, Tuple
 
 SCHEMA_MIGRATIONS_TABLE = "schema_migrations"
-CURRENT_SCHEMA_VERSION = 3
+CURRENT_SCHEMA_VERSION = 4
 
 
 def _migration_1_baseline(conn: sqlite3.Connection):
@@ -134,10 +134,37 @@ def _migration_3_batch_queue(conn: sqlite3.Connection):
     conn.execute("CREATE INDEX IF NOT EXISTS idx_batch_items_status ON batch_items(status)")
 
 
+def _migration_4_evaluation(conn: sqlite3.Connection):
+    """M13: Evaluationssuite — Testfall-Suiten und Läufe."""
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS eval_suites (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            description TEXT,
+            cases_json TEXT NOT NULL,
+            created_at TIMESTAMP NOT NULL,
+            updated_at TIMESTAMP NOT NULL
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS eval_runs (
+            id TEXT PRIMARY KEY,
+            suite_id TEXT NOT NULL REFERENCES eval_suites(id) ON DELETE CASCADE,
+            started_at TIMESTAMP NOT NULL,
+            finished_at TIMESTAMP,
+            variants_json TEXT,
+            results_json TEXT,
+            summary_json TEXT
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_eval_runs_suite ON eval_runs(suite_id)")
+
+
 MIGRATIONS: List[Tuple[int, str, object]] = [
     (1, "Baseline-Schema (results)", _migration_1_baseline),
     (2, "Projekte, Rezepte, Ergebnisversionen", _migration_2_projects_recipes_versions),
     (3, "Persistente Batch-Queue", _migration_3_batch_queue),
+    (4, "Evaluationssuite", _migration_4_evaluation),
 ]
 
 

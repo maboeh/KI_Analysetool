@@ -196,7 +196,27 @@ Der Ergebnisvergleich enthält zusätzlich einen **Text-Diff-Tab** mit zeilenwei
 
 **Prompt-Playground** führt denselben Inhalt mit mehreren Varianten aus – eine pro Zeile im Format `Modell | Prompt`. Die Varianten laufen nacheinander, Ergebnisse erscheinen mit Modell, Dauer und Tokenverbrauch in getrennten Tabs; ein Lauf lässt sich abbrechen. Ergebnisse werden nicht automatisch gespeichert.
 
-## 10.6 Analyse-Provider (lokal oder Cloud)
+## 10.6 Evaluationssuite
+
+Die **Evaluationssuite** (Erweiterte Funktionen → Qualität) speichert wiederverwendbare Testfälle in Suites und lässt Prompt-/Modell-Varianten dagegen laufen. So lassen sich Prompt-Änderungen oder Modelle vergleichbar testen, bevor sie produktiv genutzt werden.
+
+Testfälle bestehen aus einem Input-Text und Erwartungen in Zeilensyntax:
+
+| Syntax | Bedeutung |
+|---|---|
+| `enthält: Begriff` | Muss im Output vorkommen (case-/whitespace-tolerant) |
+| `enthält nicht: Begriff` | Darf nicht vorkommen |
+| `regex: Ausdruck` | Muss matchen (Groß-/Kleinschreibung egal); ungültig = Check schlägt fehl |
+| `max_zeichen: N` | Output-Länge begrenzt |
+| `json` | Output (oder erster ```` ```json ````-Block) muss gültiges JSON sein |
+
+Varianten werden eine pro Zeile im Format `Modell | Prompt` eingegeben. Der Lauf arbeitet sequenziell Variante × Testfall ab, ist abbrechbar und wird mit Zusammenfassung (bestandene Fälle, Check-Quote, Tokens, Kosten, Dauer) und der besten Variante (★) ausgewertet. Läufe bleiben gespeichert und lassen sich als Markdown-Bericht exportieren (enthält nur 200-Zeichen-Auszüge der Outputs).
+
+Datenschutz: Findet der lokale Scan sensible Daten im Input und ist kein lokaler Provider aktiv, wird der Testfall blockiert statt gesendet; bei lokalem Provider läuft er normal, da nichts das Gerät verlässt.
+
+Alle Checks sind lokal und deterministisch – es kommt bewusst kein LLM-as-Judge zum Einsatz (Kosten, Datenschutz). Die Checks prüfen daher nur formale Eigenschaften (Vorkommen, Länge, Struktur), nicht die inhaltliche Qualität der Antwort.
+
+## 10.7 Analyse-Provider (lokal oder Cloud)
 
 In den **Einstellungen** lässt sich der Analyse-Provider wählen:
 
@@ -208,7 +228,7 @@ Bei lokalem Provider werden Inhalte nicht an eine Cloud übertragen, es entstehe
 
 Wichtig: Lokale Server benötigen lokal installierte Modelle (z. B. `llama3:latest`). Steht ein Cloud-Modellname wie `gpt-4o` auf einem lokalen Provider eingestellt, warnt die App in den Einstellungen und vor der Analyse – die Anfrage schlägt auf dem lokalen Server fehl, es gehen aber keine Daten an eine Cloud.
 
-## 10.7 Updates
+## 10.8 Updates
 
 **Hilfe → Nach Updates suchen** vergleicht die installierte Version mit dem neuesten GitHub-Release. Bei einem verfügbaren Update kann das passende Paket für die eigene Plattform direkt in den Downloads-Ordner geladen werden oder die Release-Seite im Browser geöffnet werden. Die Installation erfolgt immer manuell – die App ersetzt sich nicht selbst. Optional kann in den Einstellungen „Beim Start nach Updates suchen" aktiviert werden (standardmäßig deaktiviert). Die Prüfung sendet nur eine Anfrage an die GitHub-Releases-API – keine Nutzungsdaten.
 

@@ -143,6 +143,25 @@ Tags und Favoriten sind über **Erweiterte Funktionen** erreichbar.
 - **Diagramm-Vorschläge**: Analysiert die erste extrahierte Tabelle, erkennt Spaltenrollen (Zahl, Datum, Kategorie, Text) und Fehlwerte und schlägt Diagrammtypen mit Begründung vor.
 - **Prompt-Playground**: Führt denselben Inhalt mit mehreren Prompt-/Modell-Varianten nacheinander aus und zeigt Ergebnisse, Dauer und Tokenverbrauch nebeneinander. Variante pro Zeile im Format `Modell | Prompt`.
 
+## Evaluationssuite
+
+Unter **Erweiterte Funktionen → Qualität → Evaluationssuite** lassen sich Testfälle speichern und Prompt-/Modell-Varianten dagegen laufen lassen. Alle Checks sind lokal und deterministisch – es gibt bewusst kein LLM-as-Judge (Kosten/Datenschutz). Die Checks sind formale Prüfungen (enthält der Output X, ist er kürzer als N, ist es JSON …), **keine inhaltliche Qualitätsbewertung**.
+
+- **Suites** (links): anlegen, umbenennen, löschen, als JSON importieren/exportieren; „Beispiel-Suite anlegen" erzeugt zwei Testfälle zum Ausprobieren.
+- **Testfälle** (Mitte): bestehen aus Name, Input-Text und Erwartungen – eine pro Zeile:
+
+| Syntax | Bedeutung |
+|---|---|
+| `enthält: Begriff` | Begriff muss im Output vorkommen (Groß-/Kleinschreibung und Leerzeichen tolerant) |
+| `enthält nicht: Begriff` | Begriff darf nicht vorkommen |
+| `regex: Ausdruck` | regulärer Ausdruck muss matchen; ungültige Ausdrücke schlagen als Check fehl |
+| `max_zeichen: 800` | Output darf höchstens N Zeichen lang sein |
+| `json` | Output (oder erster ```` ```json ````-Block) muss gültiges JSON sein |
+
+- **Varianten** (rechts): eine pro Zeile im Format `Modell | Prompt` wie im Prompt-Playground. „Lauf starten" führt sequenziell Variante × Testfall aus; „Abbrechen" beendet den Lauf (verbleibende Kombinationen gelten als abgebrochen).
+- **Datenschutz**: Findet der lokale Scan sensible Daten im Input und ist kein lokaler Provider aktiv, wird der Testfall als „datenschutz-blockiert" markiert und nicht gesendet. Bei lokalem Provider läuft die Analyse trotz Funden, da nichts das Gerät verlässt.
+- **Ergebnisse**: Der Ergebnisbaum zeigt pro Variante bestandene Fälle, Check-Quote, Tokens, Kosten und Durchschnittsdauer; die beste Variante ist mit ★ markiert. Klick auf einen Testfall zeigt Output und Check-Details. Läufe werden gespeichert (Liste „Frühere Läufe") und können als Markdown-Bericht exportiert werden – er enthält nur die ersten 200 Zeichen je Output, keine vollständigen Inhalte.
+
 ## Analyse-Provider
 
 Unter **Erweiterte Funktionen → Einstellungen → Analyse-Provider** kann zwischen drei Anbietern gewählt werden:

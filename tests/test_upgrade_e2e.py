@@ -79,6 +79,13 @@ class TestLegacyDatabaseUpgrade(unittest.TestCase):
         self.assertEqual(current_version(self.db_path), 0)
         version = migrate(self.db_path)
         self.assertEqual(version, CURRENT_SCHEMA_VERSION)
+        # M13: Evaluationssuite-Tabellen müssen nach Migration existieren
+        conn = sqlite3.connect(self.db_path)
+        tables = {row[0] for row in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+        conn.close()
+        self.assertIn("eval_suites", tables)
+        self.assertIn("eval_runs", tables)
 
     def test_legacy_row_survives_migration(self):
         migrate(self.db_path)

@@ -846,18 +846,13 @@ class PromptPlaygroundDialog(tk.Toplevel):
         self.results_nb.pack(fill=tk.BOTH, expand=True)
 
     def _parse_variants(self):
-        variants = []
-        for line in self.variant_entry.get("1.0", tk.END).splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            if "|" in line:
-                model, prompt = (p.strip() for p in line.split("|", 1))
-            else:
-                model, prompt = (self.models[0] if self.models else ""), line
-            if prompt:
-                variants.append((model or "gpt-4o-mini", prompt))
-        return variants
+        """Parst „Modell | Prompt"-Zeilen über die gemeinsame Logik
+        aus evaluation.parse_variant_lines; gibt (model, prompt)-Tupel."""
+        from evaluation import parse_variant_lines
+        default_model = self.models[0] if self.models else ""
+        return [(v.model, v.prompt) for v in parse_variant_lines(
+            self.variant_entry.get("1.0", tk.END), self.models,
+            default_model)]
 
     def _run(self):
         variants = self._parse_variants()
