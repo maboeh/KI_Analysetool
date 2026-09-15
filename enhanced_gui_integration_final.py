@@ -48,6 +48,8 @@ try:
     from follow_up_actions import FollowUpActionSystem
     from backup_manager import BackupManager
     from pdf_report_generator import PDFReportGenerator
+    from command_registry import (Command, CommandRegistry,
+                                  accelerator_label, tk_binding)
     ENHANCED_COMPONENTS_AVAILABLE = True
 except ImportError as e:
     print(f"Einige erweiterte Komponenten nicht verfügbar: {e}")
@@ -86,6 +88,9 @@ class EnhancedGui(BaseGui):
         # Current result tracking
         self.current_result: Optional[ProcessedResult] = None
         self.processing_thread: Optional[threading.Thread] = None
+
+        # Zentrales Befehlsregister (Menüs, Shortcuts, Befehlspalette)
+        self.commands = CommandRegistry()
 
         # Thread-safe queue for scheduling UI updates from worker threads
         self._ui_queue: queue.Queue = queue.Queue()
@@ -173,14 +178,38 @@ class EnhancedGui(BaseGui):
                 pass
 
     def _setup_keyboard_shortcuts(self):
-        """Registriert globale Tastatur-Shortcuts."""
-        self.window.bind_all("<Control-Return>", lambda e: self.send_question())
-        self.window.bind_all("<Control-s>", lambda e: self.save_note())
-        self.window.bind_all("<Control-e>", lambda e: self._export_content_as_pdf(
-            self.current_result.content if self.current_result
-            else self.output_text.get(1.0, tk.END).strip()
-        ))
-        self.window.bind_all("<Control-f>", lambda e: self._show_favorites())
+        """Bindet alle im Befehlsregister hinterlegten Tastenkürzel global.
+
+        tk_binding liefert auf macOS zusätzlich die ⌘-Variante.
+        """
+        for command in self.commands.all():
+            if not command.shortcut:
+                continue
+            for sequence in tk_binding(command.shortcut):
+                self.window.bind_all(
+                    sequence,
+                    lambda _event, cmd=command: self._dispatch_command(cmd))
+
+    def _dispatch_command(self, command: "Command"):
+        """Shortcut-Handler: führt den Befehl aus und schluckt das Event."""
+        self._run_command(command)
+        return "break"
+
+    def _run_command(self, command: "Command"):
+        """Führt einen registrierten Befehl aus (mit Ergebnis-Prüfung)."""
+        if command.requires_result and self.current_result is None:
+            messagebox.showinfo("Kein Ergebnis",
+                                "Bitte wählen Sie zuerst ein Ergebnis aus.")
+            return
+        command.callback()
+
+    def _show_command_palette(self):
+        """Öffnet die Befehlspalette über dem Hauptfenster."""
+        from command_palette import CommandPalette
+        CommandPalette(
+            self.window, self.commands,
+            has_result=lambda: self.current_result is not None,
+        )
 
     def _setup_enhanced_components(self):
         """Set up the enhanced components in the existing GUI structure."""
@@ -323,146 +352,29 @@ class EnhancedGui(BaseGui):
         
     def _add_enhanced_menu(self):
         """Add enhanced menu items and toolbar."""
+        self._register_commands()
+
         # Create menu bar if it doesn't exist
         if not hasattr(self.window, 'menubar'):
             self.window.menubar = tk.Menu(self.window)
             self.window.config(menu=self.window.menubar)
             
-        # Add enhanced features menu
+        # Menüs werden vollständig aus dem Befehlsregister aufgebaut:
+        # Separator zwischen den Kategorien in fester Reihenfolge.
         self.enhanced_menu = tk.Menu(self.window.menubar, tearoff=0)
         self.window.menubar.add_cascade(label="Erweiterte Funktionen", menu=self.enhanced_menu)
-        
-        self.enhanced_menu.add_command(
-            label="Ergebnisse verwalten",
-            command=self._show_results_manager
-        )
-        self.enhanced_menu.add_separator()
-        self.enhanced_menu.add_command(
-            label="Daten exportieren",
-            command=self._show_export_dialog
-        )
-        self.enhanced_menu.add_command(
-            label="Visualisierung erstellen",
-            command=self._show_visualization_dialog
-        )
-        self.enhanced_menu.add_separator()
-        self.enhanced_menu.add_command(
-            label="Analyse-Historie anzeigen",
-            command=self._show_analysis_history
-        )
-        self.enhanced_menu.add_command(
-            label="Token- & Kosten-Übersicht",
-            command=self._show_usage_stats
-        )
-        self.enhanced_menu.add_separator()
-        self.enhanced_menu.add_command(
-            label="Backup erstellen",
-            command=self._create_backup
-        )
-        self.enhanced_menu.add_command(
-            label="Backup wiederherstellen",
-            command=self._restore_backup
-        )
-        self.enhanced_menu.add_separator()
-        self.enhanced_menu.add_command(
-            label="PDF-Report erstellen",
-            command=self._generate_pdf_report
-        )
-        self.enhanced_menu.add_command(
-            label="Batch-Export (ZIP)",
-            command=self._batch_export
-        )
-        self.enhanced_menu.add_command(
-            label="Ergebnisse vergleichen",
-            command=self._compare_results
-        )
-        self.enhanced_menu.add_command(
-            label="Tags verwalten",
-            command=self._manage_tags
-        )
-        self.enhanced_menu.add_separator()
-        self.enhanced_menu.add_command(
-            label="Projekte verwalten",
-            command=self._show_projects_dialog
-        )
-        self.enhanced_menu.add_command(
-            label="Rezepte verwalten",
-            command=self._show_recipes_dialog
-        )
-        self.enhanced_menu.add_command(
-            label="Ergebnis bearbeiten",
-            command=self._edit_current_result
-        )
-        self.enhanced_menu.add_command(
-            label="Versionsverlauf",
-            command=self._show_versions_dialog
-        )
-        self.enhanced_menu.add_command(
-            label="Batch-Verarbeitung",
-            command=self._show_batch_dialog
-        )
-        self.enhanced_menu.add_separator()
-        self.enhanced_menu.add_command(
-            label="Quellenbelege prüfen",
-            command=self._show_evidence_dialog
-        )
-        self.enhanced_menu.add_command(
-            label="Extrahierte Daten bearbeiten",
-            command=self._edit_extracted_data
-        )
-        self.enhanced_menu.add_command(
-            label="Diagramm-Vorschläge",
-            command=self._show_chart_suggestions
-        )
-        self.enhanced_menu.add_command(
-            label="Prompt-Playground",
-            command=self._show_prompt_playground
-        )
-        self.enhanced_menu.add_command(
-            label="Favoriten anzeigen",
-            command=self._show_favorites
-        )
-        self.enhanced_menu.add_command(
-            label="Einstellungen",
-            command=self._show_settings_dialog
-        )
-        
-        # Add help menu
+        self._fill_menu(self.enhanced_menu, (
+            "Ergebnisse", "Export", "Analyse", "Arbeitsbereich",
+            "Qualität", "Einstellungen",
+        ))
+
         self.help_menu = tk.Menu(self.window.menubar, tearoff=0)
         self.window.menubar.add_cascade(label="Hilfe", menu=self.help_menu)
-        
-        self.help_menu.add_command(
-            label="Dokumentation anzeigen",
-            command=lambda: show_help_window(self.window)
-        )
-        self.help_menu.add_command(
-            label="Hilfe: Erste Schritte",
-            command=lambda: show_help_window(self.window, anchor="Schnellstart für Anfänger")
-        )
-        self.help_menu.add_command(
-            label="Onboarding erneut starten",
-            command=self._show_onboarding
-        )
-        self.help_menu.add_separator()
-        self.help_menu.add_command(
-            label="Nach Updates suchen",
-            command=self._check_for_updates
-        )
+        self._fill_menu(self.help_menu, ("Hilfe", "Update"))
 
-        # Add experience level selector
-        if not hasattr(self.window, 'menubar'):
-            self.window.menubar = tk.Menu(self.window)
-            self.window.config(menu=self.window.menubar)
         self.view_menu = tk.Menu(self.window.menubar, tearoff=0)
         self.window.menubar.add_cascade(label="Ansicht", menu=self.view_menu)
-        self.view_menu.add_command(
-            label="Erfahrungsgrad ändern",
-            command=self._show_experience_selector
-        )
-        self.view_menu.add_command(
-            label="Lernpfad anzeigen/ausblenden",
-            command=self._toggle_learning_path_panel
-        )
+        self._fill_menu(self.view_menu, ("Ansicht",))
 
         # Add prompt library button near the prompt field (reuses existing prompt frame)
         prompt_btn_frame = ttk.Frame(self.analysis_frame)
@@ -472,7 +384,187 @@ class EnhancedGui(BaseGui):
 
         # Add progress indicator to status bar
         self.progress_indicator = ProgressIndicator(self.main_frame)
-        
+
+    def _register_commands(self):
+        """Registriert alle Menü- und Shortcut-Befehle im zentralen Register.
+
+        Neue Menüaktionen hier als Command registrieren, nicht direkt per
+        add_command ins Menü schreiben – so bleiben Menü, Befehlspalette
+        und Tastenkürzel synchron.
+        """
+        register = self.commands.register
+
+        # Kategorie Ergebnisse
+        register(Command(
+            "results.manage", "Ergebnisse verwalten", "Ergebnisse",
+            self._show_results_manager,
+            keywords=("verlauf", "verwaltung")))
+        register(Command(
+            "results.compare", "Ergebnisse vergleichen", "Ergebnisse",
+            self._compare_results,
+            keywords=("vergleich", "diff")))
+        register(Command(
+            "results.tags", "Tags verwalten", "Ergebnisse",
+            self._manage_tags,
+            keywords=("tag", "schlagworte")))
+        register(Command(
+            "results.edit", "Ergebnis bearbeiten", "Ergebnisse",
+            self._edit_current_result, requires_result=True,
+            keywords=("editieren", "ändern")))
+        register(Command(
+            "results.versions", "Versionsverlauf", "Ergebnisse",
+            self._show_versions_dialog, requires_result=True,
+            keywords=("versionen", "wiederherstellen")))
+
+        # Kategorie Export
+        register(Command(
+            "export.data", "Daten exportieren", "Export",
+            self._show_export_dialog, requires_result=True,
+            keywords=("excel", "csv", "json")))
+        register(Command(
+            "export.visualization", "Visualisierung erstellen", "Export",
+            self._show_visualization_dialog, requires_result=True,
+            keywords=("diagramm", "chart")))
+        register(Command(
+            "export.pdf_report", "PDF-Report erstellen", "Export",
+            self._generate_pdf_report, requires_result=True,
+            keywords=("bericht", "report")))
+        register(Command(
+            "export.batch_zip", "Batch-Export (ZIP)", "Export",
+            self._batch_export, keywords=("zip", "archiv")))
+
+        # Kategorie Analyse
+        register(Command(
+            "analysis.history", "Analyse-Historie anzeigen", "Analyse",
+            self._show_analysis_history,
+            keywords=("historie", "sitzung")))
+        register(Command(
+            "analysis.usage", "Token- & Kosten-Übersicht", "Analyse",
+            self._show_usage_stats,
+            keywords=("kosten", "token", "verbrauch", "budget")))
+
+        # Kategorie Arbeitsbereich
+        register(Command(
+            "workspace.backup_create", "Backup erstellen", "Arbeitsbereich",
+            self._create_backup, keywords=("sicherung",)))
+        register(Command(
+            "workspace.backup_restore", "Backup wiederherstellen",
+            "Arbeitsbereich", self._restore_backup,
+            keywords=("sicherung", "restore")))
+        register(Command(
+            "workspace.projects", "Projekte verwalten", "Arbeitsbereich",
+            self._show_projects_dialog, keywords=("projekt",)))
+        register(Command(
+            "workspace.recipes", "Rezepte verwalten", "Arbeitsbereich",
+            self._show_recipes_dialog, keywords=("rezept", "vorlage")))
+        register(Command(
+            "workspace.batch", "Batch-Verarbeitung", "Arbeitsbereich",
+            self._show_batch_dialog, shortcut="Ctrl+B",
+            keywords=("stapel", "mehrere dateien", "queue")))
+
+        # Kategorie Qualität
+        register(Command(
+            "quality.evidence", "Quellenbelege prüfen", "Qualität",
+            self._show_evidence_dialog, requires_result=True,
+            keywords=("zitate", "belege", "quellen")))
+        register(Command(
+            "quality.edit_data", "Extrahierte Daten bearbeiten", "Qualität",
+            self._edit_extracted_data, requires_result=True,
+            keywords=("json", "daten", "strukturierte")))
+        register(Command(
+            "quality.chart_suggestions", "Diagramm-Vorschläge", "Qualität",
+            self._show_chart_suggestions, requires_result=True,
+            keywords=("charts", "vorschläge")))
+        register(Command(
+            "quality.playground", "Prompt-Playground", "Qualität",
+            self._show_prompt_playground, shortcut="Ctrl+Shift+P",
+            keywords=("prompt", "varianten", "modelle")))
+
+        # Kategorie Einstellungen (inkl. Favoriten)
+        register(Command(
+            "settings.favorites", "Favoriten anzeigen", "Einstellungen",
+            self._show_favorites, shortcut="Ctrl+F",
+            keywords=("favorit", "gemerkt")))
+        register(Command(
+            "settings.open", "Einstellungen", "Einstellungen",
+            self._show_settings_dialog, shortcut="Ctrl+,",
+            keywords=("optionen", "provider", "budget")))
+
+        # Kategorie Hilfe
+        register(Command(
+            "help.docs", "Dokumentation anzeigen", "Hilfe",
+            lambda: show_help_window(self.window),
+            keywords=("doku", "handbuch")))
+        register(Command(
+            "help.first_steps", "Hilfe: Erste Schritte", "Hilfe",
+            lambda: show_help_window(self.window,
+                                     anchor="Schnellstart für Anfänger"),
+            keywords=("schnellstart", "einstieg")))
+        register(Command(
+            "help.onboarding", "Onboarding erneut starten", "Hilfe",
+            self._show_onboarding, keywords=("einführung", "start")))
+
+        # Kategorie Update (eigene Menügruppe im Hilfe-Menü)
+        register(Command(
+            "help.update_check", "Nach Updates suchen", "Update",
+            self._check_for_updates,
+            keywords=("aktualisierung", "version", "release")))
+
+        # Kategorie Ansicht
+        register(Command(
+            "view.experience", "Erfahrungsgrad ändern", "Ansicht",
+            self._show_experience_selector,
+            keywords=("anfänger", "experte", "modus")))
+        register(Command(
+            "view.learning_path", "Lernpfad anzeigen/ausblenden", "Ansicht",
+            self._toggle_learning_path_panel,
+            keywords=("lernen", "panel")))
+        register(Command(
+            "view.command_palette", "Befehlspalette…", "Ansicht",
+            self._show_command_palette, shortcut="Ctrl+K",
+            keywords=("suche", "befehle", "commands", "palette")))
+
+        # Globale Aktionen (nur Palette/Shortcuts, nicht in den Menüs)
+        register(Command(
+            "action.analyze", "Analyse starten", "Aktionen",
+            self.send_question, shortcut="Ctrl+Return",
+            keywords=("start", "ausführen")))
+        register(Command(
+            "action.save_note", "Aktuelles Ergebnis speichern", "Aktionen",
+            self.save_note, shortcut="Ctrl+S",
+            keywords=("notiz", "sichern")))
+        register(Command(
+            "action.export_pdf", "Aktuelles Ergebnis als PDF exportieren",
+            "Aktionen",
+            lambda: self._export_content_as_pdf(
+                self.current_result.content if self.current_result
+                else self.results_display.get_content()),
+            shortcut="Ctrl+E", keywords=("pdf", "export")))
+
+    def _fill_menu(self, menu: tk.Menu, categories):
+        """Befüllt ein Menü kategorieweise aus dem Befehlsregister."""
+        grouped = self.commands.by_category()
+        first_group = True
+        for category in categories:
+            commands = grouped.get(category, [])
+            if not commands:
+                continue
+            if not first_group:
+                menu.add_separator()
+            first_group = False
+            for command in commands:
+                self._add_menu_command(menu, command)
+
+    def _add_menu_command(self, menu: tk.Menu, command: "Command"):
+        """Fügt einen registrierten Befehl als Menüeintrag hinzu."""
+        kwargs = {
+            "label": command.label,
+            "command": lambda cmd=command: self._run_command(cmd),
+        }
+        if command.shortcut:
+            kwargs["accelerator"] = accelerator_label(command.shortcut)
+        menu.add_command(**kwargs)
+
     def _on_status_update(self, message: str):
         """Handle status updates from enhanced components."""
         self.status_var.set(message)
@@ -653,7 +745,8 @@ class EnhancedGui(BaseGui):
                 content = self.current_result.content
             else:
                 # Read from the results text widget if no explicit content
-                content = self.output_text.get(1.0, tk.END).strip()
+                # (get_content liefert "" solange nur der Leer-Hinweis steht)
+                content = self.results_display.get_content()
 
         if not content or content == "Das Ergebnis wird hier angezeigt...":
             messagebox.showinfo("Kein Inhalt", "Bitte führen Sie zuerst eine Analyse durch.")
@@ -1884,6 +1977,13 @@ class EnhancedGui(BaseGui):
     # Maintain backward compatibility for existing methods
     def save_note(self):
         """Enhanced save_note that also saves to results manager."""
+        # Leer-Hinweis ist kein speicherbarer Inhalt
+        if getattr(getattr(self, "results_display", None),
+                   "_showing_placeholder", False):
+            self.notes = []
+            self.status_var.set("Kein Text zum Speichern gefunden")
+            return
+
         # Call original save_note
         super().save_note()
         

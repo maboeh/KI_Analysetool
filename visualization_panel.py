@@ -172,10 +172,11 @@ class DataVisualizationPanel:
         self.chart_container = ttk.Frame(self.chart_frame)
         self.chart_container.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
-        # Placeholder label
+        # Placeholder label (Empty State)
         self.placeholder_label = ttk.Label(
             self.chart_container,
-            text="Keine Daten für Visualisierung verfügbar.\nLaden Sie Daten mit numerischen Werten.",
+            text="Keine strukturierten Daten. Analysieren Sie eine Tabelle "
+                 "(Excel/CSV) oder nutzen Sie „Diagramm-Vorschläge“.",
             font=("Arial", 12),
             foreground="gray"
         )
@@ -546,7 +547,8 @@ class DataVisualizationPanel:
         except (AttributeError, tk.TclError):
             self.placeholder_label = ttk.Label(
                 self.chart_container,
-                text="Keine Daten für Visualisierung verfügbar.\nLaden Sie Daten mit numerischen Werten.",
+                text="Keine strukturierten Daten. Analysieren Sie eine Tabelle "
+                     "(Excel/CSV) oder nutzen Sie „Diagramm-Vorschläge“.",
                 font=("Arial", 12),
                 foreground="gray"
             )

@@ -24,6 +24,8 @@ Unter **Ansicht → Erfahrungsgrad ändern** stehen drei Modi zur Verfügung:
 
 Die Modi sperren keine Funktionen. Der Lernpfad wird nur durch erfolgreich ausgeführte Aktionen fortgeschrieben. Das Anzeigen einer Anleitung zählt nicht als Abschluss.
 
+Für den schnellen Zugriff steht in allen Modi die **Befehlspalette** bereit (`Strg+K`, macOS `⌘K`, oder **Ansicht → Befehlspalette…**). Sie durchsucht alle Befehle nach Titel, Kategorie und Stichworten und ist vor allem im Experten-Modus der zentrale Einstieg: Ohne Lernpfad-Anleitungen führt sie direkt zu jeder Funktion, inklusive Tastenkürzel-Anzeige. Befehle, die ein Ergebnis benötigen, sind ohne Auswahl ausgegraut. Leere Bereiche (Ergebnisanzeige, Visualisierung, Ergebnisverlauf) zeigen Hinweistexte statt leerer Flächen.
+
 Mit **Später erinnern** lässt sich das Lernpanel ausblenden. Die Einstellung bleibt nach einem Neustart erhalten. **Zurücksetzen** löscht den Lernfortschritt nach Bestätigung.
 
 ## 4. Unterstützte Eingaben
@@ -257,13 +259,21 @@ Automatisch geplante tägliche Backups, 30-Tage-Aufbewahrung, selektive Wiederhe
 
 Lade keine Dateien hoch, die Passwörter, private Schlüssel oder andere Geheimnisse enthalten.
 
-## 15. Tastaturkürzel
+## 15. Befehlspalette und Tastenkürzel
 
-- `Strg/Cmd + Enter`: Analyse starten
-- `Strg/Cmd + S`: aktuelles Ergebnis speichern
-- `Strg/Cmd + E`: aktuelles Ergebnis als PDF exportieren
-- `Strg/Cmd + F`: Favoriten anzeigen
-- `Escape`: unterstützte Hilfe- und Dialogfenster schließen
+Die **Befehlspalette** (`Strg+K`, macOS `⌘K`, oder **Ansicht → Befehlspalette…**) listet alle Befehle filterbar auf. Enter oder Doppelklick führt den ausgewählten Befehl aus, `Escape` schließt die Palette. Befehle, die ein ausgewähltes Ergebnis benötigen, sind ohne Ergebnis ausgegraut.
+
+| Aktion | Windows/Linux | macOS |
+|---|---|---|
+| Analyse starten | `Strg+Enter` | `⌘↩` |
+| Aktuelles Ergebnis speichern | `Strg+S` | `⌘S` |
+| Ergebnis als PDF exportieren | `Strg+E` | `⌘E` |
+| Favoriten anzeigen | `Strg+F` | `⌘F` |
+| Befehlspalette öffnen | `Strg+K` | `⌘K` |
+| Prompt-Playground | `Strg+Umschalt+P` | `⇧⌘P` |
+| Batch-Verarbeitung | `Strg+B` | `⌘B` |
+| Einstellungen | `Strg+,` | `⌘,` |
+| Hilfe- und Dialogfenster schließen | `Escape` | `Escape` |
 
 ## 16. Hilfe
 

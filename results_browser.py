@@ -179,10 +179,18 @@ class ResultsBrowser:
         # Results list frame
         list_frame = ttk.Frame(self.main_frame)
         list_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
-        
+
+        # Empty-State-Hinweis (wird nur bei leerer Liste eingeblendet)
+        self.empty_state_label = ttk.Label(
+            list_frame,
+            text="Noch keine gespeicherten Ergebnisse",
+            foreground="gray"
+        )
+
         # Treeview with scrollbars
         tree_frame = ttk.Frame(list_frame)
         tree_frame.pack(fill=tk.BOTH, expand=True)
+        self._tree_frame = tree_frame
         
         # Define columns
         columns = ("title", "type", "source", "date", "viz", "export")
@@ -348,7 +356,14 @@ class ResultsBrowser:
         # Clear existing items
         for item in self.results_tree.get_children():
             self.results_tree.delete(item)
-        
+
+        # Empty-State-Label ein-/ausblenden
+        if self.current_results:
+            self.empty_state_label.pack_forget()
+        else:
+            self.empty_state_label.pack(fill=tk.X, pady=4,
+                                        before=self._tree_frame)
+
         # Add current results
         for result in self.current_results:
             # Format date

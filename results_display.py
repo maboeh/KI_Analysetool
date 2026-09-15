@@ -13,6 +13,7 @@ from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
 from markdown_formatter import configure_markdown_tags, markdown_to_tkinter_text
 from help_tooltip import add_help_indicator
+from command_registry import accelerator_label
 
 
 @dataclass
@@ -44,11 +45,16 @@ class ResultsDisplayWidget(ttk.Frame):
         self.base_font_size = 10
         self.sections: List[DisplaySection] = []
         self.collapsed_sections: Dict[str, bool] = {}
-        
+
+        # Empty-State: Hinweistext solange kein Ergebnis angezeigt wird
+        self._showing_placeholder = False
+        self._empty_state_text = ""
+
         # Setup the widget
         self._setup_widget()
         self._configure_tags()
         self._bind_events()
+        self._show_empty_state()
     
     def _setup_widget(self):
         """Setup the main widget components"""
@@ -164,6 +170,11 @@ class ResultsDisplayWidget(ttk.Frame):
                                       foreground="#212529",
                                       lmargin1=20, lmargin2=20,
                                       spacing1=5, spacing3=5)
+
+        self.text_widget.tag_configure("empty_state",
+                                      foreground="#888888",
+                                      justify="center",
+                                      spacing1=40)
     
     def _bind_events(self):
         """Bind mouse and keyboard events"""
@@ -187,6 +198,7 @@ class ResultsDisplayWidget(ttk.Frame):
             content: The content to display
             content_type: Type of content (markdown, plain, structured)
         """
+        self._showing_placeholder = False
         self.text_widget.config(state=tk.NORMAL)
         self.text_widget.delete(1.0, tk.END)
         
@@ -448,15 +460,33 @@ class ResultsDisplayWidget(ttk.Frame):
         self._apply_syntax_highlighting()
     
     def get_content(self) -> str:
-        """Get the current content from the text widget"""
-        return self.text_widget.get(1.0, tk.END).strip()
-    
+        """Get the current content from the text widget.
+
+        Liefert "" solange nur der Leer-Hinweis angezeigt wird, damit er
+        nicht als Inhalt gespeichert oder exportiert wird.
+        """
+        content = self.text_widget.get(1.0, tk.END).strip()
+        if self._showing_placeholder and content == self._empty_state_text:
+            return ""
+        return content
+
     def clear_content(self):
-        """Clear all content from the widget"""
+        """Clear all content and show the empty-state hint again."""
+        self._show_empty_state()
+
+    def _show_empty_state(self):
+        """Zeigt den grauen Leer-Hinweis an (kein echter Inhalt)."""
+        self._empty_state_text = (
+            "Noch kein Ergebnis. Wählen Sie links eine Quelle, formulieren "
+            "Sie Ihre Aufgabe und klicken Sie auf „Analyse starten“ "
+            f"({accelerator_label('Ctrl+Return')})."
+        )
         self.text_widget.config(state=tk.NORMAL)
         self.text_widget.delete(1.0, tk.END)
+        self.text_widget.insert("1.0", self._empty_state_text, "empty_state")
         self.text_widget.config(state=tk.DISABLED)
         self.sections.clear()
+        self._showing_placeholder = True
     
     def _on_zoom_scroll(self, event):
         """Handle Ctrl+MouseWheel for zooming"""

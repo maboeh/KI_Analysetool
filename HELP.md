@@ -187,13 +187,21 @@ Automatische tägliche Backups, selektiver Restore und Merge-Restore sind derzei
 - In den **Einstellungen** kann ein optionales Sitzungsbudget in USD gesetzt werden. Ab 80 % Auslastung – einschließlich der geschätzten Kosten der nächsten Anfrage – erscheint vor jeder Analyse eine Bestätigung.
 - Verbrauch und Budget sind unter **Erweiterte Funktionen → Token- & Kosten-Übersicht** einsehbar.
 
-## Tastaturkürzel
+## Befehlspalette und Tastenkürzel
 
-- `Strg/Cmd + Enter`: Analyse starten
-- `Strg/Cmd + S`: aktuelles Ergebnis speichern
-- `Strg/Cmd + E`: Ergebnis als PDF exportieren
-- `Strg/Cmd + F`: Favoriten anzeigen
-- `Escape`: unterstützte Hilfe- und Dialogfenster schließen
+Mit `Strg+K` (macOS: `⌘K`) oder über **Ansicht → Befehlspalette…** öffnet sich die **Befehlspalette**: Alle Befehle lassen sich durch Tippen durchsuchen (Titel, Kategorien und Stichworte) und per Enter, Doppelklick oder Pfeiltasten ausführen. Befehle, die ein ausgewähltes Ergebnis benötigen, erscheinen ohne Ergebnis ausgegraut und geben einen Hinweis statt zu starten.
+
+| Aktion | Windows/Linux | macOS |
+|---|---|---|
+| Analyse starten | `Strg+Enter` | `⌘↩` |
+| Aktuelles Ergebnis speichern | `Strg+S` | `⌘S` |
+| Ergebnis als PDF exportieren | `Strg+E` | `⌘E` |
+| Favoriten anzeigen | `Strg+F` | `⌘F` |
+| Befehlspalette öffnen | `Strg+K` | `⌘K` |
+| Prompt-Playground | `Strg+Umschalt+P` | `⇧⌘P` |
+| Batch-Verarbeitung | `Strg+B` | `⌘B` |
+| Einstellungen | `Strg+,` | `⌘,` |
+| Hilfe- und Dialogfenster schließen | `Escape` | `Escape` |
 
 ## Kontexthilfe
 

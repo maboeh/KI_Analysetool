@@ -7,6 +7,7 @@ import sys
 
 GUI_TESTS = {
     "test_action_buttons.py",
+    "test_command_palette.py",
     "test_enhanced_gui_integration.py",
     "test_excel_export_ui.py",
     "test_extended_input_tabs.py",

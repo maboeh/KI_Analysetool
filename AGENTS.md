@@ -49,12 +49,14 @@
 - **Prompt-Bibliothek:** `prompt_library.py` (wiederverwendbare Vorlagen mit Erklärungen)
 - **Tutorial-Overlay:** `tutorial_overlay.py` (Schritt-für-Schritt-Hervorhebungen)
 - **Hilfe:** `help_tooltip.py` (?-Indikatoren + Help-Fenster); zentrale Dokumentation in `HELP.md`
+- **Befehle:** `command_registry.py` (Command/CommandRegistry, `tk_binding`/`accelerator_label` für plattformgerechte Shortcuts), `command_palette.py` (Toplevel-Quick-Launcher über alle Befehle)
 
 ## Wichtige Konventionen
 - **ActionType-Enum:** Single-Source in `data_models.py`; `action_buttons.py` importiert es + Aliase für alte deutsche Namen
 - **Tab-Identifikation:** Per Referenz (`self.tab_frames` bzw. `self._tab_identifiers`), nicht per Index
 - **Hilfe-Indikatoren:** `add_help_indicator(parent_frame, "Hilfetext")` aus `help_tooltip.py` (singleton-style Tooltip-Manager)
 - **API-Key-Namen:** `openai_key` (Standard), Fallbacks `OpenAI_Key`/`openai_api_key` in `config.py`
+- **Menüaktionen:** Neue Aktionen über `self.commands.register(...)` in `_register_commands` registrieren, nicht direkt `add_command` aufrufen (Menüs, Palette und Shortcuts bleiben so synchron)
 - **Logging:** File-Handler nach `logs/application.log` (in `main.py` konfiguriert); Secrets werden durch `SecretFilter` maskiert
 
 ## Bekannte Limitierungen
